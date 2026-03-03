@@ -1,4 +1,4 @@
-#include "pendulum/plotting.h"
+#include "modules/plotting.h"
 
 #include <vector>
 

@@ -1,4 +1,4 @@
-#include "pendulum/driven_config.h"
+#include "modules/damped_config.h"
 
 #include <algorithm>
 #include <cctype>
@@ -10,7 +10,9 @@ namespace {
 
 std::string trim(const std::string& input) {
     const auto first = input.find_first_not_of(" \t\r\n");
-    if (first == std::string::npos) return "";
+    if (first == std::string::npos) {
+        return "";
+    }
     const auto last = input.find_last_not_of(" \t\r\n");
     return input.substr(first, last - first + 1);
 }
@@ -35,8 +37,14 @@ bool parse_int(const std::string& text, int& value) {
 
 bool parse_bool(const std::string& text, bool& value) {
     const std::string lower = to_lower(trim(text));
-    if (lower == "true" || lower == "yes" || lower == "on" || lower == "1") { value = true; return true; }
-    if (lower == "false" || lower == "no" || lower == "off" || lower == "0") { value = false; return true; }
+    if (lower == "true" || lower == "yes" || lower == "on" || lower == "1") {
+        value = true;
+        return true;
+    }
+    if (lower == "false" || lower == "no" || lower == "off" || lower == "0") {
+        value = false;
+        return true;
+    }
     return false;
 }
 
@@ -49,14 +57,19 @@ std::string parse_string(std::string value) {
     return value;
 }
 
-DrivenPlottingMethod parse_plotting_method(const std::string& value_raw) {
+PlottingMethod parse_plotting_method(const std::string& value_raw) {
     const std::string value = to_lower(parse_string(value_raw));
-    if (value == "original" || value == "gnuplot") return DrivenPlottingMethod::Original;
-    if (value == "new" || value == "python" || value == "matplotlib") return DrivenPlottingMethod::New;
-    throw std::runtime_error("Invalid plotting_method: " + value_raw);
+    if (value == "original" || value == "gnuplot") {
+        return PlottingMethod::Original;
+    }
+    if (value == "new" || value == "python" || value == "matplotlib") {
+        return PlottingMethod::New;
+    }
+    throw std::runtime_error("Invalid plotting_method: " + value_raw +
+                             ". Use 'original' or 'new'.");
 }
 
-void set_value(DrivenConfig& config, const std::string& key, const std::string& value_text,
+void set_value(DampedConfig& config, const std::string& key, const std::string& value_text,
                int line_number, const std::string& path) {
     try {
         double double_value = 0.0;
@@ -73,19 +86,9 @@ void set_value(DrivenConfig& config, const std::string& key, const std::string& 
             config.physical.L = double_value;
             return;
         }
-        if (key == "physical.damping" || key == "damping") {
+        if (key == "physical.gamma" || key == "gamma") {
             if (!parse_double(value_text, double_value)) throw std::runtime_error("numeric");
-            config.physical.damping = double_value;
-            return;
-        }
-        if (key == "physical.A" || key == "A") {
-            if (!parse_double(value_text, double_value)) throw std::runtime_error("numeric");
-            config.physical.A = double_value;
-            return;
-        }
-        if (key == "physical.omega_drive" || key == "omega_drive") {
-            if (!parse_double(value_text, double_value)) throw std::runtime_error("numeric");
-            config.physical.omega_drive = double_value;
+            config.physical.gamma = double_value;
             return;
         }
         if (key == "physical.theta0" || key == "theta0") {
@@ -93,9 +96,9 @@ void set_value(DrivenConfig& config, const std::string& key, const std::string& 
             config.physical.theta0 = double_value;
             return;
         }
-        if (key == "physical.omega0" || key == "omega0") {
+        if (key == "physical.theta_dot0" || key == "theta_dot0") {
             if (!parse_double(value_text, double_value)) throw std::runtime_error("numeric");
-            config.physical.omega0 = double_value;
+            config.physical.theta_dot0 = double_value;
             return;
         }
         if (key == "simulation.t_start" || key == "t_start") {
@@ -160,17 +163,17 @@ void set_value(DrivenConfig& config, const std::string& key, const std::string& 
 
 }  // namespace
 
-std::string to_string(DrivenPlottingMethod method) {
-    return method == DrivenPlottingMethod::Original ? "original" : "new";
+std::string to_string(PlottingMethod method) {
+    return method == PlottingMethod::Original ? "original" : "new";
 }
 
-DrivenConfig load_driven_config_from_yaml(const std::string& path) {
+DampedConfig load_damped_config_from_yaml(const std::string& path) {
     std::ifstream file(path);
     if (!file.is_open()) {
         throw std::runtime_error("Could not open config file: " + path);
     }
 
-    DrivenConfig config;
+    DampedConfig config;
     std::string line;
     std::string active_section;
     int line_number = 0;
@@ -216,12 +219,33 @@ DrivenConfig load_driven_config_from_yaml(const std::string& path) {
         set_value(config, full_key, value, line_number, path);
     }
 
-    if (config.physical.g <= 0.0) throw std::runtime_error("Invalid config: physical.g must be > 0");
-    if (config.physical.L <= 0.0) throw std::runtime_error("Invalid config: physical.L must be > 0");
-    if (config.physical.damping < 0.0) throw std::runtime_error("Invalid config: physical.damping must be >= 0");
-    if (config.simulation.dt <= 0.0) throw std::runtime_error("Invalid config: simulation.dt must be > 0");
-    if (config.simulation.t_end <= config.simulation.t_start) throw std::runtime_error("Invalid config: simulation.t_end must be > simulation.t_start");
-    if (config.simulation.output_every <= 0) throw std::runtime_error("Invalid config: simulation.output_every must be > 0");
+    if (config.physical.g <= 0.0) {
+        throw std::runtime_error("Invalid config: physical.g must be > 0");
+    }
+    if (config.physical.L <= 0.0) {
+        throw std::runtime_error("Invalid config: physical.L must be > 0");
+    }
+    if (config.physical.gamma < 0.0) {
+        throw std::runtime_error("Invalid config: physical.gamma must be >= 0");
+    }
+    if (config.simulation.dt <= 0.0) {
+        throw std::runtime_error("Invalid config: simulation.dt must be > 0");
+    }
+    if (config.simulation.t_end <= config.simulation.t_start) {
+        throw std::runtime_error("Invalid config: simulation.t_end must be > simulation.t_start");
+    }
+    if (config.simulation.output_every <= 0) {
+        throw std::runtime_error("Invalid config: simulation.output_every must be > 0");
+    }
+    if (config.settings.data_file.empty()) {
+        throw std::runtime_error("Invalid config: settings.data_file must not be empty");
+    }
+    if (config.settings.output_png.empty()) {
+        throw std::runtime_error("Invalid config: settings.output_png must not be empty");
+    }
+    if (config.settings.python_script.empty()) {
+        throw std::runtime_error("Invalid config: settings.python_script must not be empty");
+    }
 
     return config;
 }

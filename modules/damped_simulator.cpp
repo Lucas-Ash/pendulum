@@ -1,4 +1,4 @@
-#include "pendulum/damped_simulator.h"
+#include "modules/damped_simulator.h"
 
 #include <cmath>
 #include <stdexcept>

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "pendulum/simulation_result.h"
+#include "modules/simulation_result.h"
 
 class PendulumSimulator {
 public:

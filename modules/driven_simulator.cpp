@@ -1,4 +1,4 @@
-#include "pendulum/driven_simulator.h"
+#include "modules/driven_simulator.h"
 #include <cmath>
 #include <stdexcept>
 #include <algorithm>

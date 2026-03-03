@@ -1,4 +1,4 @@
-#include "pendulum/damped_reporting.h"
+#include "modules/damped_reporting.h"
 
 #include <cmath>
 #include <iostream>

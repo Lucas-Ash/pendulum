@@ -4,25 +4,25 @@
 #include <string>
 
 // Simple Pendulum
-#include "pendulum/experiment_config.h"
-#include "pendulum/pendulum_simulator.h"
-#include "pendulum/plotting.h"
-#include "pendulum/reporting.h"
-#include "pendulum/runtime_env.h"
+#include "modules/experiment_config.h"
+#include "modules/pendulum_simulator.h"
+#include "modules/plotting.h"
+#include "modules/reporting.h"
+#include "modules/runtime_env.h"
 
 // Damped Pendulum
-#include "pendulum/damped_config.h"
-#include "pendulum/damped_io.h"
-#include "pendulum/damped_plotting.h"
-#include "pendulum/damped_reporting.h"
-#include "pendulum/damped_simulator.h"
+#include "modules/damped_config.h"
+#include "modules/damped_io.h"
+#include "modules/damped_plotting.h"
+#include "modules/damped_reporting.h"
+#include "modules/damped_simulator.h"
 
 // Driven Pendulum
-#include "pendulum/driven_config.h"
-#include "pendulum/driven_io.h"
-#include "pendulum/driven_plotting.h"
-#include "pendulum/driven_reporting.h"
-#include "pendulum/driven_simulator.h"
+#include "modules/driven_config.h"
+#include "modules/driven_io.h"
+#include "modules/driven_plotting.h"
+#include "modules/driven_reporting.h"
+#include "modules/driven_simulator.h"
 
 enum class SimulationType {
     Unknown,

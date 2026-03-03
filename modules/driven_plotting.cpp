@@ -1,4 +1,4 @@
-#include "pendulum/driven_plotting.h"
+#include "modules/driven_plotting.h"
 
 #include <cstdlib>
 #include <fstream>

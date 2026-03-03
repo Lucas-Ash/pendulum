@@ -1,4 +1,4 @@
-#include "pendulum/damped_plotting.h"
+#include "modules/damped_plotting.h"
 
 #include <cstdio>
 #include <cstdlib>

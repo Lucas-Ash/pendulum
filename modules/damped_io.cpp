@@ -1,4 +1,4 @@
-#include "pendulum/damped_io.h"
+#include "modules/damped_io.h"
 
 #include <fstream>
 #include <iomanip>

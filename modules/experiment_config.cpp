@@ -1,4 +1,4 @@
-#include "pendulum/experiment_config.h"
+#include "modules/experiment_config.h"
 
 #include <fstream>
 #include <iostream>

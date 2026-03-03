@@ -1,7 +1,7 @@
 #pragma once
 
-#include "pendulum/driven_config.h"
-#include "pendulum/driven_result.h"
+#include "modules/driven_config.h"
+#include "modules/driven_result.h"
 
 class DrivenPendulumSimulator {
 public:
