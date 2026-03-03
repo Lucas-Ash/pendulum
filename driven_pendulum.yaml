@@ -1,0 +1,23 @@
+physical:
+  g: 9.81
+  L: 1.0
+  damping: 0.5
+  A: 0.5
+  omega_drive: 1.2
+  theta0: 0.1
+  omega0: 0.0
+
+simulation:
+  t_start: 0.0
+  t_end: 50.0
+  dt: 0.001
+  output_every: 10
+
+settings:
+  plotting_method: new
+  show_plot: false
+  save_png: true
+  run_plotter: true
+  data_file: "driven_pendulum_data.csv"
+  output_png: "driven_pendulum_comparison.png"
+  python_script: "plot_driven_pendulum.py"

@@ -1,0 +1,21 @@
+physical:
+  g: 9.81
+  L: 1.0
+  gamma: 0.7
+  theta0: 0.3
+  theta_dot0: -0.8
+
+simulation:
+  t_start: 0.0
+  t_end: 15.0
+  dt: 0.001
+  output_every: 10
+
+settings:
+  plotting_method: new   # original=gnuplot, new=python/matplotlib
+  show_plot: true
+  save_png: true
+  run_plotter: true           # only used by plotting_method: new
+  data_file: "damped_pendulum_data.dat"
+  output_png: "damped_pendulum.png"
+  python_script: "plot_damped_pendulum.py"
