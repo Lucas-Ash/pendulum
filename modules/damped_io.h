@@ -2,6 +2,6 @@
 
 #include <string>
 
-#include "modules/damped_result.h"
+#include "modules/simulation_result.h"
 
-void write_damped_data_file(const std::string& path, const DampedSimulationResult& result);
+void write_damped_data_file(const std::string& path, const SimulationResult& result);

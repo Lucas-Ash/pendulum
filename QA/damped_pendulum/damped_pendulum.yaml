@@ -16,6 +16,6 @@ settings:
   show_plot: true
   save_png: true
   run_plotter: true           # only used by plotting_method: new
-  data_file: "damped_pendulum_data.dat"
-  output_png: "damped_pendulum.png"
-  python_script: "plot_damped_pendulum.py"
+  data_file: "QA/damped_pendulum/outputs/damped_pendulum_1.dat"
+  output_png: "QA/damped_pendulum/outputs/damped_pendulum_1.png"
+  python_script: "QA/damped_pendulum/outputs/plot_damped_pendulum.py"

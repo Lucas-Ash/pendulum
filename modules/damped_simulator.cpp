@@ -40,64 +40,96 @@ void rk4_step(DerivFunc f, double y[2], double dt, double gamma, double omega0) 
 DampedPendulumSimulator::DampedPendulumSimulator(const DampedConfig& config)
     : config_(config) {}
 
-double DampedPendulumSimulator::analytical_solution(double t, double omega_d, double gamma,
-                                                    double theta0, double theta_dot0) {
+void DampedPendulumSimulator::analytical_solution(double t, double omega_d, double gamma,
+                                                  double theta0, double theta_dot0,
+                                                  double& theta_exact, double& omega_exact) {
     const double A = theta0;
     const double B = (theta_dot0 + gamma * theta0) / omega_d;
-    return std::exp(-gamma * t) *
-           (A * std::cos(omega_d * t) + B * std::sin(omega_d * t));
+    const double exp_term = std::exp(-gamma * t);
+    const double cos_term = std::cos(omega_d * t);
+    const double sin_term = std::sin(omega_d * t);
+
+    theta_exact = exp_term * (A * cos_term + B * sin_term);
+    omega_exact = -gamma * theta_exact + exp_term * (-A * omega_d * sin_term + B * omega_d * cos_term);
 }
 
 double DampedPendulumSimulator::total_energy(double theta, double theta_dot, double omega0) {
     return 0.5 * theta_dot * theta_dot + omega0 * omega0 * (1.0 - std::cos(theta));
 }
 
-DampedSimulationResult DampedPendulumSimulator::simulate() const {
+SimulationResult DampedPendulumSimulator::simulate() const {
     const auto& p = config_.physical;
     const auto& s = config_.simulation;
 
-    DampedSimulationResult result;
-    result.omega0 = std::sqrt(p.g / p.L);
-    if (p.gamma >= result.omega0) {
+    SimulationResult result;
+    double omega0 = std::sqrt(p.g / p.L);
+    if (p.gamma >= omega0) {
         throw std::runtime_error("This analytical model assumes underdamped motion: gamma < omega0");
     }
-    result.omega_d = std::sqrt(result.omega0 * result.omega0 - p.gamma * p.gamma);
-    result.zeta = p.gamma / result.omega0;
+    double omega_d = std::sqrt(omega0 * omega0 - p.gamma * p.gamma);
 
     const int nsteps = static_cast<int>((s.t_end - s.t_start) / s.dt + 0.5);
     result.rk4_steps = nsteps;
 
     double y_nl[2] = {p.theta0, p.theta_dot0};
-    double y_lin[2] = {p.theta0, p.theta_dot0};
+
+    double max_theta_error = 0.0;
+    double max_omega_error = 0.0;
+    double avg_theta_error = 0.0;
+    double avg_omega_error = 0.0;
+    double max_theta_rel_error = 0.0;
+    double max_omega_rel_error = 0.0;
+    double avg_theta_rel_error = 0.0;
+    double avg_omega_rel_error = 0.0;
 
     for (int n = 0; n <= nsteps; ++n) {
         const double t = s.t_start + n * s.dt;
-        const double theta_exact = analytical_solution(
-            t, result.omega_d, p.gamma, p.theta0, p.theta_dot0);
-        const double err_lin = std::fabs(theta_exact - y_lin[0]);
-        const double err_nl = std::fabs(theta_exact - y_nl[0]);
-        const double E_nl = total_energy(y_nl[0], y_nl[1], result.omega0);
+        double theta_exact = 0.0;
+        double omega_exact = 0.0;
+        analytical_solution(t, omega_d, p.gamma, p.theta0, p.theta_dot0, theta_exact, omega_exact);
+        
+        result.t.push_back(t);
+        result.theta.push_back(y_nl[0]);
+        result.omega.push_back(y_nl[1]);
+        result.theta_analytical.push_back(theta_exact);
+        result.omega_analytical.push_back(omega_exact);
+        result.energy.push_back(total_energy(y_nl[0], y_nl[1], omega0));
 
-        if (err_lin > result.max_err_linear) result.max_err_linear = err_lin;
-        if (err_nl > result.max_err_nonlinear) result.max_err_nonlinear = err_nl;
+        const double theta_err = std::abs(y_nl[0] - theta_exact);
+        const double omega_err = std::abs(y_nl[1] - omega_exact);
+        const double theta_rel = theta_err / std::max(std::abs(theta_exact), 1e-12);
+        const double omega_rel = omega_err / std::max(std::abs(omega_exact), 1e-12);
 
-        if (n % s.output_every == 0) {
-            result.samples.push_back(DampedSample{
-                t,
-                theta_exact,
-                y_lin[0],
-                y_nl[0],
-                err_lin,
-                err_nl,
-                E_nl
-            });
-        }
+        result.theta_errors.push_back(theta_err);
+        result.omega_errors.push_back(omega_err);
+
+        max_theta_error = std::max(max_theta_error, theta_err);
+        max_omega_error = std::max(max_omega_error, omega_err);
+        avg_theta_error += theta_err;
+        avg_omega_error += omega_err;
+        max_theta_rel_error = std::max(max_theta_rel_error, theta_rel);
+        max_omega_rel_error = std::max(max_omega_rel_error, omega_rel);
+        avg_theta_rel_error += theta_rel;
+        avg_omega_rel_error += omega_rel;
 
         if (n < nsteps) {
-            rk4_step(derivs_nonlinear, y_nl, s.dt, p.gamma, result.omega0);
-            rk4_step(derivs_linear, y_lin, s.dt, p.gamma, result.omega0);
+            rk4_step(derivs_nonlinear, y_nl, s.dt, p.gamma, omega0);
         }
     }
+
+    const double sample_count = static_cast<double>(result.t.size());
+    result.theta_stats = {
+        max_theta_error,
+        avg_theta_error / sample_count,
+        max_theta_rel_error,
+        avg_theta_rel_error / sample_count,
+    };
+    result.omega_stats = {
+        max_omega_error,
+        avg_omega_error / sample_count,
+        max_omega_rel_error,
+        avg_omega_rel_error / sample_count,
+    };
 
     return result;
 }

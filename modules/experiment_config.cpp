@@ -60,6 +60,17 @@ ExperimentConfig load_config_from_yaml(const std::string& path) {
                                      std::to_string(line_number) + " in " + path);
         }
 
+        if (key == "data_file") {
+            config.data_file = value_text;
+            // Remove surround quotes if any
+            if (config.data_file.size() >= 2 && 
+                ((config.data_file.front() == '"' && config.data_file.back() == '"') ||
+                 (config.data_file.front() == '\'' && config.data_file.back() == '\''))) {
+                config.data_file = config.data_file.substr(1, config.data_file.length() - 2);
+            }
+            continue;
+        }
+
         double value = 0.0;
         try {
             if (!parse_double(value_text, value)) {

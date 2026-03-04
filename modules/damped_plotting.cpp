@@ -9,7 +9,7 @@
 namespace {
 
 bool write_python_plot_script(const DampedConfig& config,
-                              const DampedSimulationResult& result) {
+                              const SimulationResult& result) {
     const auto& settings = config.settings;
 
     std::ofstream script(settings.python_script);
@@ -25,27 +25,24 @@ bool write_python_plot_script(const DampedConfig& config,
     script << "data = np.loadtxt('" << settings.data_file << "', comments='#')\n";
     script << "t = data[:,0]\n";
     script << "theta_exact = data[:,1]\n";
-    script << "theta_lin = data[:,2]\n";
-    script << "theta_nl = data[:,3]\n";
-    script << "err_lin = data[:,4]\n";
-    script << "err_nl = data[:,5]\n";
+    script << "theta_nl = data[:,2]\n";
+    script << "omega_nl = data[:,3]\n";
+    script << "err_nl = data[:,4]\n";
+    script << "err_omega = data[:,5]\n";
     script << "energy_nl = data[:,6]\n\n";
     script << "fig, axes = plt.subplots(3, 1, figsize=(12, 10), sharex=True)\n";
     script << "fig.suptitle('Damped Pendulum "
            << "(theta0=" << config.physical.theta0
-           << " rad, gamma=" << config.physical.gamma
-           << ", omega0=" << result.omega0 << ")', fontsize=14)\n\n";
+           << " rad, gamma=" << config.physical.gamma << ")', fontsize=14)\n\n";
 
     script << "axes[0].plot(t, theta_exact, label='Analytical (linearized)', linewidth=2.2)\n";
-    script << "axes[0].plot(t, theta_lin, '--', label='RK4 linearized', linewidth=1.8)\n";
     script << "axes[0].plot(t, theta_nl, '-.', label='RK4 nonlinear (sin theta)', linewidth=1.8)\n";
     script << "axes[0].set_ylabel('theta (rad)')\n";
     script << "axes[0].set_title('Angular Displacement')\n";
     script << "axes[0].grid(True, alpha=0.3)\n";
     script << "axes[0].legend(loc='best')\n\n";
 
-    script << "axes[1].semilogy(t, err_lin, label='|RK4 linear - analytical|', linewidth=1.6)\n";
-    script << "axes[1].semilogy(t, err_nl, label='|RK4 nonlinear - analytical|', linewidth=1.6)\n";
+    script << "axes[1].semilogy(t, err_nl, label='|RK4 theta nonlinear - exp theta exact|', linewidth=1.6)\n";
     script << "axes[1].set_ylabel('|Error| (rad)')\n";
     script << "axes[1].set_title('Absolute Error vs Analytical Solution')\n";
     script << "axes[1].grid(True, alpha=0.3)\n";
@@ -84,7 +81,7 @@ bool run_python_plotter(const DampedConfig& config) {
 }
 
 bool render_with_gnuplot(const DampedConfig& config,
-                         const DampedSimulationResult& result) {
+                         const SimulationResult& result) {
     const auto& settings = config.settings;
     const auto& p = config.physical;
     const char* gnuplot_cmd = settings.show_plot ? "gnuplot -persistent" : "gnuplot";
@@ -109,8 +106,8 @@ bool render_with_gnuplot(const DampedConfig& config,
 
         fprintf(gp,
             "set multiplot layout 3,1 title "
-            "'Damped Pendulum  (theta0=%.2f rad, gamma=%.2f, omega0=%.4f)' font ',14'\n",
-            p.theta0, p.gamma, result.omega0);
+            "'Damped Pendulum  (theta0=%.2f rad, gamma=%.2f)' font ',14'\n",
+            p.theta0, p.gamma);
 
         fprintf(gp,
             "set xlabel 'Time t (s)'\n"
@@ -118,8 +115,7 @@ bool render_with_gnuplot(const DampedConfig& config,
             "set title 'Angular Displacement' font ',12'\n"
             "set key top right\n"
             "plot '%s' u 1:2 w l ls 1 title 'Analytical (linearized)',"
-            "     ''   u 1:3 w l ls 2 title 'RK4 linearized',"
-            "     ''   u 1:4 w l ls 3 title 'RK4 nonlinear (sin theta)'\n",
+            "     ''   u 1:3 w l ls 3 title 'RK4 nonlinear (sin theta)'\n",
             settings.data_file.c_str());
 
         fprintf(gp,
@@ -151,8 +147,8 @@ bool render_with_gnuplot(const DampedConfig& config,
 
         fprintf(gp,
             "set multiplot layout 3,1 title "
-            "'Damped Pendulum  (theta0=%.2f rad, gamma=%.2f, omega0=%.4f)' font ',14'\n",
-            p.theta0, p.gamma, result.omega0);
+            "'Damped Pendulum  (theta0=%.2f rad, gamma=%.2f)' font ',14'\n",
+            p.theta0, p.gamma);
 
         fprintf(gp,
             "set xlabel 'Time t (s)'\n"
@@ -160,8 +156,7 @@ bool render_with_gnuplot(const DampedConfig& config,
             "set title 'Angular Displacement' font ',12'\n"
             "set key top right\n"
             "plot '%s' u 1:2 w l ls 1 title 'Analytical (linearized)',"
-            "     ''   u 1:3 w l ls 2 title 'RK4 linearized',"
-            "     ''   u 1:4 w l ls 3 title 'RK4 nonlinear (sin theta)'\n",
+            "     ''   u 1:3 w l ls 3 title 'RK4 nonlinear (sin theta)'\n",
             settings.data_file.c_str());
 
         fprintf(gp,
@@ -192,7 +187,7 @@ bool render_with_gnuplot(const DampedConfig& config,
 }  // namespace
 
 void render_damped_plots(const DampedConfig& config,
-                         const DampedSimulationResult& result) {
+                         const SimulationResult& result) {
     if (config.settings.plotting_method == PlottingMethod::Original) {
         if (render_with_gnuplot(config, result)) {
             if (config.settings.save_png) {

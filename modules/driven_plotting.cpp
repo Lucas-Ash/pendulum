@@ -7,7 +7,7 @@
 
 namespace {
 
-void generate_plot_script(const DrivenConfig& config, const DrivenSimulationResult& result) {
+void generate_plot_script(const DrivenConfig& config, const SimulationResult& result) {
     const auto& s = config.settings;
     const auto& p = config.physical;
     const auto& sim = config.simulation;
@@ -27,9 +27,9 @@ void generate_plot_script(const DrivenConfig& config, const DrivenSimulationResu
     script << "# Load data from CSV\n";
     script << "data = np.loadtxt('" << s.data_file << "', delimiter=',', skiprows=1)\n";
     script << "time = data[:, 0]\n";
-    script << "theta_numerical = data[:, 1]\n";
-    script << "theta_analytical = data[:, 2]\n";
-    script << "difference = data[:, 3]\n\n";
+    script << "theta_numerical = data[:, 2]\n";
+    script << "theta_analytical = data[:, 1]\n";
+    script << "difference = data[:, 4]\n\n";
     script << "# Create figure with subplots\n";
     script << "fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 10))\n\n";
     script << "# Plot 1: Theta vs Time\n";
@@ -78,7 +78,7 @@ void generate_plot_script(const DrivenConfig& config, const DrivenSimulationResu
 
 } // namespace
 
-void render_driven_plots(const DrivenConfig& config, const DrivenSimulationResult& result) {
+void render_driven_plots(const DrivenConfig& config, const SimulationResult& result) {
     if (config.settings.plotting_method == DrivenPlottingMethod::New) {
         generate_plot_script(config, result);
         

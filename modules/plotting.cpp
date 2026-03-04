@@ -2,7 +2,7 @@
 
 #include <vector>
 
-#include "matplotlibcpp.h"
+#include "modules/add-ons/matplotlibcpp.h"
 namespace plt = matplotlibcpp;
 
 void plot_simulation_results(const SimulationResult& result) {

@@ -61,6 +61,15 @@ SimulationResult PendulumSimulator::simulate(double theta0, double omega0) const
         result.t.push_back(t);
         result.theta.push_back(theta);
         result.omega.push_back(omega);
+        
+        double theta_ref = 0.0;
+        double omega_ref = 0.0;
+        exact_linear_state(t, theta0, omega0, theta_ref, omega_ref);
+        result.theta_analytical.push_back(theta_ref);
+        result.omega_analytical.push_back(omega_ref);
+        
+        double energy = 0.5 * omega * omega + (g_ / L_) * (1.0 - std::cos(theta));
+        result.energy.push_back(energy);
 
         rk4_step(theta, omega);
         t += dt_;
@@ -79,9 +88,8 @@ SimulationResult PendulumSimulator::simulate(double theta0, double omega0) const
     double avg_omega_rel_error = 0.0;
 
     for (size_t i = 0; i < result.t.size(); ++i) {
-        double theta_ref = 0.0;
-        double omega_ref = 0.0;
-        exact_linear_state(result.t[i], theta0, omega0, theta_ref, omega_ref);
+        double theta_ref = result.theta_analytical[i];
+        double omega_ref = result.omega_analytical[i];
 
         const double theta_err = std::abs(result.theta[i] - theta_ref);
         const double omega_err = std::abs(result.omega[i] - omega_ref);
@@ -114,6 +122,8 @@ SimulationResult PendulumSimulator::simulate(double theta0, double omega0) const
         max_omega_rel_error,
         avg_omega_rel_error / sample_count,
     };
+
+    result.rk4_steps = result.t.size() - 1;
 
     return result;
 }

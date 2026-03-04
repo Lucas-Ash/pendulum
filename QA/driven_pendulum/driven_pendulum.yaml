@@ -18,6 +18,6 @@ settings:
   show_plot: false
   save_png: true
   run_plotter: true
-  data_file: "driven_pendulum_data.csv"
-  output_png: "driven_pendulum_comparison.png"
-  python_script: "plot_driven_pendulum.py"
+  data_file: "QA/driven_pendulum/outputs/driven_pendulum_data.csv"
+  output_png: "QA/driven_pendulum/outputs/driven_pendulum_comparison.png"
+  python_script: "QA/driven_pendulum/outputs/plot_driven_pendulum.py"

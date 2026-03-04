@@ -9,6 +9,7 @@
 #include "modules/plotting.h"
 #include "modules/reporting.h"
 #include "modules/runtime_env.h"
+#include "modules/simple_io.h"
 
 // Damped Pendulum
 #include "modules/damped_config.h"
@@ -75,8 +76,12 @@ int run_simple(const std::string& config_path) {
     PendulumSimulator pendulum(config.length, config.gravity, config.dt, config.t_max);
     SimulationResult result = pendulum.simulate(config.theta0, config.omega0);
 
+    write_simple_data_file(config.data_file, result);
+    std::cout << "Data saved to " << config.data_file << "\n";
+
     print_accuracy_report(config, result);
     plot_simulation_results(result);
+    // std::cout << "Simple simulation finished successfully. (IO/Plots temporarily disabled)\n";
     return 0;
 }
 
@@ -95,13 +100,14 @@ int run_damped(const std::string& config_path) {
 
     try {
         DampedPendulumSimulator simulator(config);
-        DampedSimulationResult result = simulator.simulate();
+        SimulationResult result = simulator.simulate();
 
         write_damped_data_file(config.settings.data_file, result);
         std::cout << "Data written to " << config.settings.data_file << "\n";
 
         print_damped_simulation_summary(config, result);
         render_damped_plots(config, result);
+        // std::cout << "Damped simulation finished successfully. (IO/Plots temporarily disabled)\n";
     } catch (const std::exception& ex) {
         std::cerr << "Simulation failed: " << ex.what() << "\n";
         return 1;
@@ -126,7 +132,7 @@ int run_driven(const std::string& config_path) {
     try {
         std::cout << "Running simulation...\n";
         DrivenPendulumSimulator simulator(config);
-        DrivenSimulationResult result = simulator.simulate();
+        SimulationResult result = simulator.simulate();
 
         write_driven_data_file(config.settings.data_file, result);
         std::cout << "Data saved to " << config.settings.data_file << "\n";
@@ -135,6 +141,7 @@ int run_driven(const std::string& config_path) {
         
         std::cout << "To view the graph, run: python3 " << config.settings.python_script << "\n";
         render_driven_plots(config, result);
+        // std::cout << "Driven simulation finished successfully. (IO/Plots temporarily disabled)\n";
     } catch (const std::exception& ex) {
         std::cerr << "Simulation failed: " << ex.what() << "\n";
         return 1;

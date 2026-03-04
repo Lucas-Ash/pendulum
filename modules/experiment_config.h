@@ -9,6 +9,7 @@ struct ExperimentConfig {
     double t_max = 20.0;
     double theta0 = 0.5;
     double omega0 = 0.0;
+    std::string data_file = "simple_pendulum_data.csv";
 };
 
 ExperimentConfig load_config_from_yaml(const std::string& path);

@@ -13,8 +13,12 @@ struct SimulationResult {
     std::vector<double> t;
     std::vector<double> theta;
     std::vector<double> omega;
+    std::vector<double> theta_analytical;
+    std::vector<double> omega_analytical;
     std::vector<double> theta_errors;
     std::vector<double> omega_errors;
+    std::vector<double> energy;
     ErrorStatistics theta_stats;
     ErrorStatistics omega_stats;
+    int rk4_steps = 0;
 };
