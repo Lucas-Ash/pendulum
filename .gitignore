@@ -4,3 +4,9 @@ open_env/*
 simple_pendulum.yaml
 driven_pendulum.yaml
 damped_pendulum.yaml
+.cursor/*
+pendulum_research.pdf
+tests/build/*
+tests/artifacts/convergence/*.csv
+tests/artifacts/convergence/*.png
+*.mp4

@@ -1,7 +1,7 @@
 # Simple pendulum runtime configuration
 length: 1.0
 gravity: 9.81
-dt: 0.0001
+dt: 0.01
 t_max: 20.0
 theta0: 0.1
 omega0: 0.0
