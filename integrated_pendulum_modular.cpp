@@ -74,7 +74,7 @@ int run_simple(const std::string& config_path) {
               << std::endl;
 
     PendulumSimulator pendulum(config.length, config.gravity, config.dt, config.t_max);
-    SimulationResult result = pendulum.simulate(config.theta0, config.omega0);
+    SimulationResult result = pendulum.simulate(config.theta0, config.omega0, config.integrator, config.analytical_model);
 
     write_simple_data_file(config.data_file, result);
     std::cout << "Data saved to " << config.data_file << "\n";

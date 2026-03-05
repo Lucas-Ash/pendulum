@@ -3,6 +3,7 @@ g++ -O3 -std=c++17 -I. \
   -I"$(python3 -c 'import numpy; print(numpy.get_include())')" \
   integrated_pendulum_modular.cpp \
   modules/experiment_config.cpp \
+  modules/jacobi_elliptic.cpp \
   modules/pendulum_simulator.cpp \
   modules/plotting.cpp \
   modules/plotting_utils.cpp \

@@ -1,6 +1,7 @@
 #include "modules/pendulum_simulator.h"
 #include "modules/rk_integrators.h"
 #include "modules/error_analysis.h"
+#include "modules/jacobi_elliptic.h"
 
 #include <algorithm>
 #include <cmath>
@@ -25,7 +26,75 @@ void PendulumSimulator::exact_linear_state(double t, double theta0, double omega
     omega_exact = -theta0 * wn * s + omega0 * c;
 }
 
-SimulationResult PendulumSimulator::simulate(double theta0, double omega0, const std::string& integrator) const {
+void PendulumSimulator::exact_nonlinear_state(double t, double theta0, double omega0,
+                                              double& theta_exact, double& omega_exact) const {
+    const double wn = std::sqrt(g_ / L_);
+    
+    // Total dimensionless energy E / (m*g*L)
+    const double E = 0.5 * (omega0 / wn) * (omega0 / wn) + (1.0 - std::cos(theta0));
+    
+    // For bounded motion (oscillation), E < 2
+    if (E >= 2.0) {
+        // Fallback to linear if the energy causes continuous rotation (unbounded).
+        // A full treatment handles m > 1 via reciprocal modulus conversions, 
+        // but for a "simple pendulum" demonstration, let's bound to oscillation.
+        exact_linear_state(t, theta0, omega0, theta_exact, omega_exact);
+        return;
+    }
+
+    const double k_sq = E / 2.0;  // m parameter for Jacobi functions
+    const double k = std::sqrt(k_sq);
+    
+    // Modulus bounds
+    if (k_sq < 1e-15) {
+        exact_linear_state(t, theta0, omega0, theta_exact, omega_exact);
+        return;
+    }
+
+    // Determine phase offset phi_0
+    double sin_theta_half = std::sin(theta0 / 2.0) / k;
+    sin_theta_half = std::max(-1.0, std::min(1.0, sin_theta_half));
+    
+    // Fix the initial v0 determination.
+    // Given theta_0 and omega_0, we can define the initial state directly via sn, cn, dn.
+    // Instead of wrestling with inverse elliptic integrals over branches,
+    // we solve for the time offset t_0 equivalent to the state.
+    // Actually, std::ellint_1(k, phi) is F(phi, k). The k parameter is the first argument in C++17.
+    // However, it's easier to use the fact that if omega_0 = 0 (like our default cases), 
+    // the pendulum is released from rest at theta0.
+    // Hence, E = 1 - cos(theta0) and k = sin(theta0/2).
+    // The maximum angle is exactly theta0, so the phase starts at F(pi/2, k) which is the quarter period K(k).
+    
+    double phi_0 = 0.0;
+    if (std::abs(sin_theta_half) >= 1.0) {
+        phi_0 = M_PI / 2.0 * (sin_theta_half > 0 ? 1.0 : -1.0);
+    } else {
+        phi_0 = std::asin(sin_theta_half);
+    }
+    
+    // Calculate complete elliptic integral of the first kind K(k)
+    double K = std::comp_ellint_1(k);
+    
+    // Our starting phase v0.
+    // If omega0 == 0, we start at amplitude, so v0 = K.
+    // If we have an initial velocity, we need F(phi_0, k).
+    // Note C++17 signature is ellint_1(k, phi).
+    double v0 = std::ellint_1(k, phi_0);
+    if (omega0 < 0) {
+        v0 = K + (K - v0);
+    }
+
+    // Current phase variable v_t
+    double v_t = wn * t + v0;
+
+    double sn, cn, dn;
+    math_utils::jacobi_sn_cn_dn(v_t, k_sq, sn, cn, dn);
+
+    theta_exact = 2.0 * std::asin(k * sn);
+    omega_exact = 2.0 * wn * k * cn;
+}
+
+SimulationResult PendulumSimulator::simulate(double theta0, double omega0, const std::string& integrator, const std::string& analytical_model) const {
     SimulationResult result;
 
     double t = 0.0;
@@ -39,7 +108,11 @@ SimulationResult PendulumSimulator::simulate(double theta0, double omega0, const
         
         double theta_ref = 0.0;
         double omega_ref = 0.0;
-        exact_linear_state(t, theta0, omega0, theta_ref, omega_ref);
+        if (analytical_model == "jacobi") {
+            exact_nonlinear_state(t, theta0, omega0, theta_ref, omega_ref);
+        } else {
+            exact_linear_state(t, theta0, omega0, theta_ref, omega_ref);
+        }
         result.theta_analytical.push_back(theta_ref);
         result.omega_analytical.push_back(omega_ref);
         

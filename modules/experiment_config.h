@@ -14,6 +14,7 @@ struct ExperimentConfig {
     bool save_png = true;
     std::string output_png = "simple_pendulum.png";
     std::string integrator = "rk4";
+    std::string analytical_model = "linear";
 };
 
 ExperimentConfig load_config_from_yaml(const std::string& path);

@@ -13,7 +13,7 @@ public:
     double dt() const;
     double t_max() const;
 
-    SimulationResult simulate(double theta0 = 0.5, double omega0 = 0.0, const std::string& integrator = "rk4") const;
+    SimulationResult simulate(double theta0 = 0.5, double omega0 = 0.0, const std::string& integrator = "rk4", const std::string& analytical_model = "linear") const;
 
 private:
     double g_;
@@ -24,4 +24,6 @@ private:
 
     void exact_linear_state(double t, double theta0, double omega0,
                             double& theta_exact, double& omega_exact) const;
+    void exact_nonlinear_state(double t, double theta0, double omega0,
+                               double& theta_exact, double& omega_exact) const;
 };

@@ -85,6 +85,15 @@ ExperimentConfig load_config_from_yaml(const std::string& path) {
             }
             config.integrator = config_utils::to_lower(config.integrator);
             continue;
+        } else if (key == "analytical_model") {
+            config.analytical_model = value_text;
+            if (config.analytical_model.size() >= 2 && 
+                ((config.analytical_model.front() == '"' && config.analytical_model.back() == '"') ||
+                 (config.analytical_model.front() == '\'' && config.analytical_model.back() == '\''))) {
+                config.analytical_model = config.analytical_model.substr(1, config.analytical_model.length() - 2);
+            }
+            config.analytical_model = config_utils::to_lower(config.analytical_model);
+            continue;
         }
 
         double value = 0.0;
