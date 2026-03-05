@@ -23,6 +23,16 @@ integrator::State integrate(
             state = integrator::rk3_step(t, dt, state, derivs);
         } else if (method == "rk5") {
             state = integrator::rk5_step(t, dt, state, derivs);
+        } else if (method == "semi_implicit_euler") {
+            state = integrator::semi_implicit_euler_step(t, dt, state, derivs);
+        } else if (method == "leapfrog") {
+            state = integrator::leapfrog_step(t, dt, state, derivs);
+        } else if (method == "ruth4") {
+            state = integrator::ruth4_step(t, dt, state, derivs);
+        } else if (method == "rk23") {
+            state = integrator::rk23_step(t, dt, state, derivs);
+        } else if (method == "rkf45") {
+            state = integrator::rkf45_step(t, dt, state, derivs);
         } else {
             state = integrator::rk4_step(t, dt, state, derivs);
         }
@@ -74,6 +84,8 @@ TEST(RkIntegratorsConstantDerivativeIsExact) {
     const auto s3 = integrator::rk3_step(0.0, dt, initial, derivs);
     const auto s4 = integrator::rk4_step(0.0, dt, initial, derivs);
     const auto s5 = integrator::rk5_step(0.0, dt, initial, derivs);
+    const auto s23 = integrator::rk23_step(0.0, dt, initial, derivs);
+    const auto s45 = integrator::rkf45_step(0.0, dt, initial, derivs);
 
     const double theta_expected = 1.0 + 2.0 * dt;
     const double omega_expected = 5.0 - 3.0 * dt;
@@ -84,6 +96,10 @@ TEST(RkIntegratorsConstantDerivativeIsExact) {
     EXPECT_NEAR(s4.omega, omega_expected, 1e-12);
     EXPECT_NEAR(s5.theta, theta_expected, 1e-12);
     EXPECT_NEAR(s5.omega, omega_expected, 1e-12);
+    EXPECT_NEAR(s23.theta, theta_expected, 1e-12);
+    EXPECT_NEAR(s23.omega, omega_expected, 1e-12);
+    EXPECT_NEAR(s45.theta, theta_expected, 1e-12);
+    EXPECT_NEAR(s45.omega, omega_expected, 1e-12);
 }
 
 TEST(RkIntegratorsConvergenceOnExponentialDecay) {
@@ -108,14 +124,22 @@ TEST(RkIntegratorsConvergenceOnExponentialDecay) {
     const double e4_half = error_at("rk4", 0.05);
     const double e5_dt = error_at("rk5", 0.1);
     const double e5_half = error_at("rk5", 0.05);
+    const double e23_dt = error_at("rk23", 0.1);
+    const double e23_half = error_at("rk23", 0.05);
+    const double e45_dt = error_at("rkf45", 0.1);
+    const double e45_half = error_at("rkf45", 0.05);
 
     EXPECT_TRUE(e3_half < e3_dt);
     EXPECT_TRUE(e4_half < e4_dt);
     EXPECT_TRUE(e5_half < e5_dt);
+    EXPECT_TRUE(e23_half < e23_dt);
+    EXPECT_TRUE(e45_half < e45_dt);
 
     EXPECT_TRUE(e3_dt / e3_half > 4.0);
     EXPECT_TRUE(e4_dt / e4_half > 8.0);
     EXPECT_TRUE(e5_dt / e5_half > 12.0);
+    EXPECT_TRUE(e23_dt / e23_half > 4.0);
+    EXPECT_TRUE(e45_dt / e45_half > 12.0);
 }
 
 TEST(RkIntegratorsObservedOrderMatchesMethodOrder) {
@@ -140,21 +164,71 @@ TEST(RkIntegratorsObservedOrderMatchesMethodOrder) {
     std::vector<double> e3;
     std::vector<double> e4;
     std::vector<double> e5;
+    std::vector<double> e23;
+    std::vector<double> e45;
     for (double dt : dts) {
         e3.push_back(max_error("rk3", dt));
         e4.push_back(max_error("rk4", dt));
         e5.push_back(max_error("rk5", dt));
+        e23.push_back(max_error("rk23", dt));
+        e45.push_back(max_error("rkf45", dt));
     }
 
     const double p3 = observed_order_from_halving(e3);
     const double p4 = observed_order_from_halving(e4);
     const double p5 = observed_order_from_halving(e5);
+    const double p23 = observed_order_from_halving(e23);
+    const double p45 = observed_order_from_halving(e45);
 
     EXPECT_TRUE(p3 > 2.6 && p3 < 3.4);
     EXPECT_TRUE(p4 > 3.6 && p4 < 4.4);
     EXPECT_TRUE(p5 > 4.4 && p5 < 5.6);
+    EXPECT_TRUE(p23 > 2.6 && p23 < 3.4); // RK23 is 3rd order step
+    EXPECT_TRUE(p45 > 4.4 && p45 < 5.6); // RKF45 is 5th order step
 
     EXPECT_TRUE(e3.back() < e3.front());
     EXPECT_TRUE(e4.back() < e4.front());
     EXPECT_TRUE(e5.back() < e5.front());
+    EXPECT_TRUE(e23.back() < e23.front());
+    EXPECT_TRUE(e45.back() < e45.front());
 }
+
+TEST(RkIntegratorsSymplecticHarmonicOscillator) {
+    auto derivs = [](double, const integrator::State& s) -> integrator::State {
+        return {s.omega, -s.theta};
+    };
+
+    const integrator::State initial{1.0, 0.0};
+    const double t_end = 2.0 * M_PI; // One full period
+    auto error_at = [&](const std::string& method, double dt) {
+        int steps = std::round(t_end / dt);
+        double t_actual_end = steps * dt;
+        const double exact_theta = initial.theta * std::cos(t_actual_end) + initial.omega * std::sin(t_actual_end);
+        const double exact_omega = -initial.theta * std::sin(t_actual_end) + initial.omega * std::cos(t_actual_end);
+        const auto out = integrate(method, dt, t_actual_end, initial, derivs);
+        const double e_theta = std::fabs(out.theta - exact_theta);
+        const double e_omega = std::fabs(out.omega - exact_omega);
+        return std::max(e_theta, e_omega);
+    };
+
+    const double e_euler_dt = error_at("semi_implicit_euler", 0.01);
+    const double e_euler_half = error_at("semi_implicit_euler", 0.005);
+    
+    const double e_leapfrog_dt = error_at("leapfrog", 0.01);
+    const double e_leapfrog_half = error_at("leapfrog", 0.005);
+    
+    const double e_ruth_dt = error_at("ruth4", 0.1);
+    const double e_ruth_half = error_at("ruth4", 0.05);
+
+    EXPECT_TRUE(e_euler_half < e_euler_dt);
+    EXPECT_TRUE(e_leapfrog_half < e_leapfrog_dt);
+    EXPECT_TRUE(e_ruth_half < e_ruth_dt);
+
+    // Euler is 1st order (~2x better)
+    EXPECT_TRUE(e_euler_dt / e_euler_half > 1.8);
+    // Leapfrog is 2nd order (~4x better)
+    EXPECT_TRUE(e_leapfrog_dt / e_leapfrog_half > 3.8);
+    // Ruth is 4th order (~16x better)
+    EXPECT_TRUE(e_ruth_dt / e_ruth_half > 14.0);
+}
+

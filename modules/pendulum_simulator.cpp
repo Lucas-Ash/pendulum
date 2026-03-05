@@ -128,6 +128,16 @@ SimulationResult PendulumSimulator::simulate(double theta0, double omega0, const
             state = integrator::rk3_step(t, dt_, state, derivs);
         } else if (integrator == "rk5") {
             state = integrator::rk5_step(t, dt_, state, derivs);
+        } else if (integrator == "semi_implicit_euler") {
+            state = integrator::semi_implicit_euler_step(t, dt_, state, derivs);
+        } else if (integrator == "leapfrog") {
+            state = integrator::leapfrog_step(t, dt_, state, derivs);
+        } else if (integrator == "ruth4") {
+            state = integrator::ruth4_step(t, dt_, state, derivs);
+        } else if (integrator == "rk23") {
+            state = integrator::rk23_step(t, dt_, state, derivs);
+        } else if (integrator == "rkf45") {
+            state = integrator::rkf45_step(t, dt_, state, derivs);
         } else {
             state = integrator::rk4_step(t, dt_, state, derivs);
         }

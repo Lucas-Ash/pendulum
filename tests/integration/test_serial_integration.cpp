@@ -345,7 +345,7 @@ TEST(SerialIntegrationSimplePendulumConvergesWithIncreasingResolutionAcrossInteg
 
     std::map<std::string, std::vector<double>> errors_by_method;
 
-    for (const std::string& method : std::array<std::string, 3>{"rk3", "rk4", "rk5"}) {
+    for (const std::string& method : std::array<std::string, 8>{"rk3", "rk4", "rk5", "rk23", "rkf45", "semi_implicit_euler", "leapfrog", "ruth4"}) {
         std::vector<double> errors;
         errors.reserve(dts.size());
         for (double dt : dts) {

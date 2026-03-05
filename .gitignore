@@ -10,3 +10,6 @@ tests/build/*
 tests/artifacts/convergence/*.csv
 tests/artifacts/convergence/*.png
 *.mp4
+AGENTS.md
+debug*
+a.out

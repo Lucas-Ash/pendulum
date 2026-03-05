@@ -64,6 +64,16 @@ SimulationResult DampedPendulumSimulator::simulate() const {
                 state = integrator::rk3_step(t, s.dt, state, derivs);
             } else if (config_.settings.integrator == "rk5") {
                 state = integrator::rk5_step(t, s.dt, state, derivs);
+            } else if (config_.settings.integrator == "semi_implicit_euler") {
+                state = integrator::semi_implicit_euler_step(t, s.dt, state, derivs);
+            } else if (config_.settings.integrator == "leapfrog") {
+                state = integrator::leapfrog_step(t, s.dt, state, derivs);
+            } else if (config_.settings.integrator == "ruth4") {
+                state = integrator::ruth4_step(t, s.dt, state, derivs);
+            } else if (config_.settings.integrator == "rk23") {
+                state = integrator::rk23_step(t, s.dt, state, derivs);
+            } else if (config_.settings.integrator == "rkf45") {
+                state = integrator::rkf45_step(t, s.dt, state, derivs);
             } else {
                 state = integrator::rk4_step(t, s.dt, state, derivs);
             }
