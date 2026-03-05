@@ -4,24 +4,7 @@
 #include <iostream>
 #include <stdexcept>
 
-namespace {
-
-std::string trim(const std::string& input) {
-    const auto first = input.find_first_not_of(" \t\r\n");
-    if (first == std::string::npos) {
-        return "";
-    }
-    const auto last = input.find_last_not_of(" \t\r\n");
-    return input.substr(first, last - first + 1);
-}
-
-bool parse_double(const std::string& text, double& value) {
-    size_t parsed = 0;
-    value = std::stod(text, &parsed);
-    return parsed == text.size();
-}
-
-}  // namespace
+#include "modules/config_utils.h"
 
 ExperimentConfig load_config_from_yaml(const std::string& path) {
     std::ifstream file(path);
@@ -40,7 +23,7 @@ ExperimentConfig load_config_from_yaml(const std::string& path) {
             line = line.substr(0, comment_pos);
         }
 
-        line = trim(line);
+        line = config_utils::trim(line);
         if (line.empty() || line == "---" || line == "...") {
             continue;
         }
@@ -52,8 +35,8 @@ ExperimentConfig load_config_from_yaml(const std::string& path) {
                 ": expected key: value");
         }
 
-        const std::string key = trim(line.substr(0, colon_pos));
-        const std::string value_text = trim(line.substr(colon_pos + 1));
+        const std::string key = config_utils::trim(line.substr(0, colon_pos));
+        const std::string value_text = config_utils::trim(line.substr(colon_pos + 1));
 
         if (value_text.empty()) {
             throw std::runtime_error("Missing value for key '" + key + "' at line " +
@@ -69,11 +52,44 @@ ExperimentConfig load_config_from_yaml(const std::string& path) {
                 config.data_file = config.data_file.substr(1, config.data_file.length() - 2);
             }
             continue;
+        } else if (key == "output_png") {
+            config.output_png = value_text;
+            if (config.output_png.size() >= 2 && 
+                ((config.output_png.front() == '"' && config.output_png.back() == '"') ||
+                 (config.output_png.front() == '\'' && config.output_png.back() == '\''))) {
+                config.output_png = config.output_png.substr(1, config.output_png.length() - 2);
+            }
+            continue;
+        } else if (key == "show_plot") {
+            bool bval = false;
+            if (config_utils::parse_bool(value_text, bval)) {
+                config.show_plot = bval;
+            } else {
+                throw std::runtime_error("Invalid boolean for show_plot");
+            }
+            continue;
+        } else if (key == "save_png") {
+            bool bval = false;
+            if (config_utils::parse_bool(value_text, bval)) {
+                config.save_png = bval;
+            } else {
+                throw std::runtime_error("Invalid boolean for save_png");
+            }
+            continue;
+        } else if (key == "integrator") {
+            config.integrator = value_text;
+            if (config.integrator.size() >= 2 && 
+                ((config.integrator.front() == '"' && config.integrator.back() == '"') ||
+                 (config.integrator.front() == '\'' && config.integrator.back() == '\''))) {
+                config.integrator = config.integrator.substr(1, config.integrator.length() - 2);
+            }
+            config.integrator = config_utils::to_lower(config.integrator);
+            continue;
         }
 
         double value = 0.0;
         try {
-            if (!parse_double(value_text, value)) {
+            if (!config_utils::parse_double(value_text, value)) {
                 throw std::runtime_error("non-numeric value");
             }
         } catch (...) {
@@ -110,6 +126,9 @@ ExperimentConfig load_config_from_yaml(const std::string& path) {
     if (config.t_max <= 0.0) {
         throw std::runtime_error("Invalid config: t_max must be > 0");
     }
+
+    config.data_file = config_utils::resolve_output_path(config.data_file);
+    config.output_png = config_utils::resolve_output_path(config.output_png);
 
     return config;
 }

@@ -5,6 +5,7 @@
 #include <fstream>
 #include <iostream>
 #include <string>
+#include "modules/plotting_utils.h"
 
 namespace {
 
@@ -70,15 +71,7 @@ bool write_python_plot_script(const DampedConfig& config,
     return true;
 }
 
-bool run_python_plotter(const DampedConfig& config) {
-    const std::string command = "python3 \"" + config.settings.python_script + "\"";
-    const int status = std::system(command.c_str());
-    if (status != 0) {
-        std::cerr << "Warning: python plotting command failed: " << command << "\n";
-        return false;
-    }
-    return true;
-}
+
 
 bool render_with_gnuplot(const DampedConfig& config,
                          const SimulationResult& result) {
@@ -204,7 +197,7 @@ void render_damped_plots(const DampedConfig& config,
     std::cout << "Plotting script created: " << config.settings.python_script << "\n";
 
     if (config.settings.run_plotter) {
-        run_python_plotter(config);
+        plotting_utils::run_python_script(config.settings.python_script);
     } else {
         std::cout << "Run manually: python3 " << config.settings.python_script << "\n";
     }

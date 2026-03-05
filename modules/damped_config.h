@@ -30,6 +30,7 @@ struct DampedSettingsConfig {
     std::string data_file = "damped_pendulum_data.dat";
     std::string output_png = "damped_pendulum.png";
     std::string python_script = "plot_damped_pendulum.py";
+    std::string integrator = "rk4";
 };
 
 struct DampedConfig {

@@ -13,6 +13,8 @@ simulation:
   dt: 0.001
   output_every: 10
 
+integrator: "rk5"
+
 settings:
   plotting_method: new
   show_plot: false

@@ -10,6 +10,10 @@ struct ExperimentConfig {
     double theta0 = 0.5;
     double omega0 = 0.0;
     std::string data_file = "simple_pendulum_data.csv";
+    bool show_plot = true;
+    bool save_png = true;
+    std::string output_png = "simple_pendulum.png";
+    std::string integrator = "rk4";
 };
 
 ExperimentConfig load_config_from_yaml(const std::string& path);

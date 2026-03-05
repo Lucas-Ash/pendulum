@@ -1,11 +1,15 @@
 #include "modules/plotting.h"
 
 #include <vector>
+#include <cstdlib>
 
 #include "modules/add-ons/matplotlibcpp.h"
+#include <iostream>
 namespace plt = matplotlibcpp;
 
-void plot_simulation_results(const SimulationResult& result) {
+void plot_simulation_results(const ExperimentConfig& config, const SimulationResult& result) {
+    if (std::getenv("QA_TEST")) return;
+    
     plt::figure_size(1200, 800);
 
     plt::subplot2grid(2, 2, 0, 0);
@@ -43,5 +47,13 @@ void plot_simulation_results(const SimulationResult& result) {
     plt::grid(true);
 
     plt::tight_layout();
-    plt::show();
+    
+    if (config.save_png) {
+        plt::save(config.output_png);
+        std::cout << "Plot saved to " << config.output_png << "\n";
+    }
+    
+    if (config.show_plot) {
+        plt::show();
+    }
 }

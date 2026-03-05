@@ -11,9 +11,11 @@ simulation:
   dt: 0.001
   output_every: 10
 
+integrator: "rk5"
+
 settings:
   plotting_method: new   # original=gnuplot, new=python/matplotlib
-  show_plot: true
+  show_plot: false
   save_png: true
   run_plotter: true           # only used by plotting_method: new
   data_file: "QA/damped_pendulum/outputs/damped_pendulum_1.dat"

@@ -1,0 +1,276 @@
+#!/usr/bin/env python3
+"""
+Run QA YAML scripts and optionally compare results to baseline outputs.
+
+Usage:
+  python run_qa_tests.py [--compare] [--exec PATH] [--qa-dir PATH]
+
+Options:
+  --compare, -c    Compare new results to existing outputs; report differences
+  --exec PATH      Path to integrated_pendulum executable (default: ./integrated_pendulum)
+  --qa-dir PATH    QA directory (default: QA)
+  --tolerance TOL  Max absolute difference to consider OK when comparing (default: 1e-10)
+"""
+
+import argparse
+import csv
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+
+def find_qa_yamls(qa_dir: Path) -> list[Path]:
+    """Find all .yaml config files in the QA directory."""
+    return sorted(qa_dir.rglob("*.yaml"))
+
+
+def get_output_paths(config_path: Path) -> list[Path]:
+    """Extract output file paths from a YAML config. Returns paths relative to project root."""
+    paths = []
+    data_file_re = re.compile(r'^\s*data_file:\s*["\']?([^"\'\s]+)["\']?\s*(?:#.*)?$')
+    with open(config_path) as f:
+        for line in f:
+            m = data_file_re.match(line.strip())
+            if m:
+                paths.append(Path(m.group(1)))
+    return paths
+
+
+def load_data_file(path: Path) -> tuple[list[str], list[list[float]]]:
+    """
+    Load a data file (CSV or space-separated .dat).
+    Returns (column_names, rows) where rows are lists of floats.
+    """
+    path = Path(path)
+    if not path.exists():
+        return [], []
+
+    rows = []
+    columns = []
+
+    with open(path) as f:
+        if path.suffix.lower() == ".csv":
+            reader = csv.reader(f)
+            lines = list(reader)
+            if lines:
+                columns = lines[0]
+                for line in lines[1:]:
+                    rows.append([float(x) for x in line])
+        else:
+            # .dat format: # header line then space-separated numbers
+            for line in f:
+                line = line.strip()
+                if line.startswith("#"):
+                    columns = line.lstrip("#").split()
+                    continue
+                parts = line.split()
+                if parts:
+                    rows.append([float(x) for x in parts])
+
+    return columns, rows
+
+
+def compare_data(
+    baseline_path: Path,
+    new_path: Path,
+    name: str,
+) -> dict:
+    """
+    Compare two data files. Returns summary statistics.
+    """
+    bl_cols, bl_rows = load_data_file(baseline_path)
+    new_cols, new_rows = load_data_file(new_path)
+
+    result = {
+        "name": name,
+        "file": str(new_path),
+        "baseline_rows": len(bl_rows),
+        "new_rows": len(new_rows),
+        "row_match": len(bl_rows) == len(new_rows),
+        "columns": bl_cols or new_cols,
+        "max_abs_diff": {},
+        "mean_abs_diff": {},
+        "rmse": {},
+        "max_rel_diff": {},
+    }
+
+    if not bl_rows or not new_rows:
+        result["error"] = "Empty baseline or new data"
+        return result
+
+    ncols = min(len(bl_cols) if bl_cols else len(bl_rows[0]), len(bl_rows[0]), len(new_rows[0]))
+    nrows = min(len(bl_rows), len(new_rows))
+    cols = bl_cols[:ncols] if bl_cols else [f"col_{i}" for i in range(ncols)]
+
+    for i, col in enumerate(cols):
+        if i >= len(bl_rows[0]) or i >= len(new_rows[0]):
+            break
+        bl_vals = [r[i] for r in bl_rows[:nrows]]
+        new_vals = [r[i] for r in new_rows[:nrows]]
+        diffs = [abs(a - b) for a, b in zip(bl_vals, new_vals)]
+        result["max_abs_diff"][col] = max(diffs) if diffs else 0
+        result["mean_abs_diff"][col] = sum(diffs) / len(diffs) if diffs else 0
+        result["rmse"][col] = (sum(d * d for d in diffs) / len(diffs)) ** 0.5 if diffs else 0
+        # Relative diff (avoid div by zero)
+        rel_diffs = []
+        for a, b in zip(bl_vals, new_vals):
+            denom = abs(a) if abs(a) > 1e-30 else 1e-30
+            rel_diffs.append(abs(a - b) / denom)
+        result["max_rel_diff"][col] = max(rel_diffs) if rel_diffs else 0
+
+    return result
+
+
+def run_simulation(exec_path: Path, config_path: Path, cwd: Path) -> subprocess.CompletedProcess:
+    """Run the pendulum simulation for a config file."""
+    import os
+    env = os.environ.copy()
+    env["QA_TEST"] = "1"
+    return subprocess.run(
+        [str(exec_path.resolve()), str(config_path.resolve())],
+        cwd=str(cwd),
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Run QA YAML scripts and optionally compare to baseline outputs"
+    )
+    parser.add_argument(
+        "--compare", "-c",
+        action="store_true",
+        help="Compare new results to existing outputs; report differences",
+    )
+    parser.add_argument(
+        "--exec",
+        default="./integrated_pendulum",
+        help="Path to integrated_pendulum executable",
+    )
+    parser.add_argument(
+        "--qa-dir",
+        default="QA",
+        help="QA directory path",
+    )
+    parser.add_argument(
+        "--tolerance",
+        type=float,
+        default=1e-10,
+        help="Max absolute difference to consider OK when comparing (default: 1e-10)",
+    )
+    args = parser.parse_args()
+
+    project_root = Path(__file__).resolve().parent.parent
+    qa_dir = (project_root / args.qa_dir).resolve()
+    exec_path = (project_root / args.exec).resolve()
+
+    if not qa_dir.exists():
+        print(f"Error: QA directory not found: {qa_dir}", file=sys.stderr)
+        sys.exit(1)
+    if not exec_path.exists():
+        print(f"Error: Executable not found: {exec_path}", file=sys.stderr)
+        print("Run ./compile_integrated.sh first.", file=sys.stderr)
+        sys.exit(1)
+
+    yamls = find_qa_yamls(qa_dir)
+    if not yamls:
+        print(f"No YAML configs found in {qa_dir}", file=sys.stderr)
+        sys.exit(1)
+
+    # Collect all output paths from configs
+    output_paths = []
+    for yp in yamls:
+        for op in get_output_paths(yp):
+            full_path = (project_root / op).resolve()
+            if full_path not in [p[1] for p in output_paths]:
+                output_paths.append((yp.stem, full_path))
+
+    # Baseline backup when comparing
+    baseline_dir = None
+    if args.compare and output_paths:
+        baseline_dir = Path(tempfile.mkdtemp(prefix="qa_baseline_"))
+        for _, op in output_paths:
+            if op.exists():
+                rel = op.relative_to(project_root)
+                dest = baseline_dir / rel
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(op, dest)
+
+    # Run simulations
+    print("Running QA simulations...\n")
+    failed = []
+    for yp in yamls:
+        rel = yp.relative_to(project_root)
+        print(f"  [{rel}]", end=" ")
+        proc = run_simulation(exec_path, yp, project_root)
+        if proc.returncode != 0:
+            print("FAILED")
+            failed.append((rel, proc.stderr or proc.stdout or ""))
+        else:
+            print("OK")
+
+    if failed:
+        print("\nFailures:")
+        for rel, err in failed:
+            print(f"  {rel}:")
+            for line in (err or "").strip().split("\n")[-5:]:
+                print(f"    {line}")
+        # Exclude failed tests' outputs from comparison
+        failed_stems = {Path(rel).stem for rel, _ in failed}
+        output_paths = [(n, p) for n, p in output_paths if n not in failed_stems]
+
+    # Compare if requested
+    if args.compare and baseline_dir:
+        print("\n" + "=" * 60)
+        print("Comparison: new results vs baseline (existing outputs)")
+        print("=" * 60)
+
+        all_ok = True
+        for name, new_path in output_paths:
+            rel = new_path.relative_to(project_root)
+            baseline_path = baseline_dir / rel
+            r = compare_data(baseline_path, new_path, name)
+
+            if "error" in r:
+                print(f"\n  {r['name']} / {r['file']}: {r['error']}")
+                all_ok = False
+                continue
+
+            row_issue = "" if r["row_match"] else f" (ROW COUNT: baseline={r['baseline_rows']} vs new={r['new_rows']})"
+            print(f"\n  {r['name']}: {rel}{row_issue}")
+            if not r["row_match"]:
+                all_ok = False
+
+            tol = args.tolerance
+            for col in (r["columns"] or list(r["max_abs_diff"].keys())):
+                if col not in r["max_abs_diff"]:
+                    continue
+                max_d = r["max_abs_diff"][col]
+                mean_d = r["mean_abs_diff"][col]
+                rmse = r["rmse"][col]
+                max_r = r["max_rel_diff"][col]
+                status = "OK" if max_d < tol else "DIFF"
+                if max_d >= tol:
+                    all_ok = False
+                print(f"    {col}: max_abs={max_d:.2e} mean_abs={mean_d:.2e} rmse={rmse:.2e} max_rel={max_r:.2e} [{status}]")
+
+        shutil.rmtree(baseline_dir, ignore_errors=True)
+
+        if all_ok:
+            print(f"\n  All comparisons within numerical tolerance (max_abs < {args.tolerance}).")
+        else:
+            print("\n  Some differences detected. Review the metrics above.")
+
+    print("\nDone.")
+    if failed:
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

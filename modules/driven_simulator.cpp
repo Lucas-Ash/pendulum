@@ -3,30 +3,10 @@
 #include <stdexcept>
 #include <algorithm>
 
+#include "modules/rk_integrators.h"
+#include "modules/error_analysis.h"
+
 namespace {
-    struct State {
-        double theta;
-        double omega;
-        State operator+(const State& other) const { return {theta + other.theta, omega + other.omega}; }
-        State operator*(double scalar) const { return {theta * scalar, omega * scalar}; }
-    };
-
-    State derivatives(double t, const State& state, const DrivenPhysicalConfig& p) {
-        State d_state;
-        d_state.theta = state.omega;
-        d_state.omega = -p.damping * state.omega
-                        - (p.g / p.L) * std::sin(state.theta)
-                        + p.A * std::cos(p.omega_drive * t);
-        return d_state;
-    }
-
-    State rk4_step(double t, double dt, const State& state, const DrivenPhysicalConfig& p) {
-        State k1 = derivatives(t, state, p);
-        State k2 = derivatives(t + dt * 0.5, state + k1 * (dt * 0.5), p);
-        State k3 = derivatives(t + dt * 0.5, state + k2 * (dt * 0.5), p);
-        State k4 = derivatives(t + dt, state + k3 * dt, p);
-        return state + (k1 + k2 * 2.0 + k3 * 2.0 + k4) * (dt / 6.0);
-    }
 
     void analytical_solution(double t, const DrivenPhysicalConfig& p, double& theta_exact, double& omega_exact) {
         double omega_0 = std::sqrt(p.g / p.L);
@@ -76,20 +56,11 @@ SimulationResult DrivenPendulumSimulator::simulate() const {
     const auto& s = config_.simulation;
 
     SimulationResult result;
-    State state = {p.theta0, p.omega0};
+    integrator::State state = {p.theta0, p.omega0};
     double omega0 = std::sqrt(p.g / p.L);
     
     double t = s.t_start;
     
-    double max_theta_error = 0.0;
-    double max_omega_error = 0.0;
-    double avg_theta_error = 0.0;
-    double avg_omega_error = 0.0;
-    double max_theta_rel_error = 0.0;
-    double max_omega_rel_error = 0.0;
-    double avg_theta_rel_error = 0.0;
-    double avg_omega_rel_error = 0.0;
-
     int nsteps = static_cast<int>((s.t_end - s.t_start) / s.dt + 0.5);
     result.rk4_steps = nsteps;
 
@@ -105,42 +76,24 @@ SimulationResult DrivenPendulumSimulator::simulate() const {
         result.omega_analytical.push_back(omega_exact);
         result.energy.push_back(total_energy(state.theta, state.omega, omega0));
 
-        const double theta_err = std::abs(state.theta - theta_exact);
-        const double omega_err = std::abs(state.omega - omega_exact);
-        const double theta_rel = theta_err / std::max(std::abs(theta_exact), 1e-12);
-        const double omega_rel = omega_err / std::max(std::abs(omega_exact), 1e-12);
-
-        result.theta_errors.push_back(theta_err);
-        result.omega_errors.push_back(omega_err);
-
-        max_theta_error = std::max(max_theta_error, theta_err);
-        max_omega_error = std::max(max_omega_error, omega_err);
-        avg_theta_error += theta_err;
-        avg_omega_error += omega_err;
-        max_theta_rel_error = std::max(max_theta_rel_error, theta_rel);
-        max_omega_rel_error = std::max(max_omega_rel_error, omega_rel);
-        avg_theta_rel_error += theta_rel;
-        avg_omega_rel_error += omega_rel;
-
         if (n < nsteps) {
-            state = rk4_step(t, s.dt, state, p);
+            auto derivs = [&p](double t_val, const integrator::State& s) -> integrator::State {
+                return {s.omega, -p.damping * s.omega - (p.g / p.L) * std::sin(s.theta) + p.A * std::cos(p.omega_drive * t_val)};
+            };
+            
+            if (config_.settings.integrator == "rk3") {
+                state = integrator::rk3_step(t, s.dt, state, derivs);
+            } else if (config_.settings.integrator == "rk5") {
+                state = integrator::rk5_step(t, s.dt, state, derivs);
+            } else {
+                state = integrator::rk4_step(t, s.dt, state, derivs);
+            }
+            
             t += s.dt;
         }
     }
 
-    const double sample_count = static_cast<double>(result.t.size());
-    result.theta_stats = {
-        max_theta_error,
-        avg_theta_error / sample_count,
-        max_theta_rel_error,
-        avg_theta_rel_error / sample_count,
-    };
-    result.omega_stats = {
-        max_omega_error,
-        avg_omega_error / sample_count,
-        max_omega_rel_error,
-        avg_omega_rel_error / sample_count,
-    };
+    compute_error_statistics(result);
 
     return result;
 }

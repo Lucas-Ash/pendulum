@@ -6,51 +6,12 @@
 #include <iostream>
 #include <stdexcept>
 
+#include "modules/config_utils.h"
+
 namespace {
 
-std::string trim(const std::string& input) {
-    const auto first = input.find_first_not_of(" \t\r\n");
-    if (first == std::string::npos) return "";
-    const auto last = input.find_last_not_of(" \t\r\n");
-    return input.substr(first, last - first + 1);
-}
-
-std::string to_lower(std::string text) {
-    std::transform(text.begin(), text.end(), text.begin(),
-                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-    return text;
-}
-
-bool parse_double(const std::string& text, double& value) {
-    size_t parsed = 0;
-    value = std::stod(text, &parsed);
-    return parsed == text.size();
-}
-
-bool parse_int(const std::string& text, int& value) {
-    size_t parsed = 0;
-    value = std::stoi(text, &parsed);
-    return parsed == text.size();
-}
-
-bool parse_bool(const std::string& text, bool& value) {
-    const std::string lower = to_lower(trim(text));
-    if (lower == "true" || lower == "yes" || lower == "on" || lower == "1") { value = true; return true; }
-    if (lower == "false" || lower == "no" || lower == "off" || lower == "0") { value = false; return true; }
-    return false;
-}
-
-std::string parse_string(std::string value) {
-    value = trim(value);
-    if (value.size() >= 2 && ((value.front() == '"' && value.back() == '"') ||
-                              (value.front() == '\'' && value.back() == '\''))) {
-        return value.substr(1, value.size() - 2);
-    }
-    return value;
-}
-
 DrivenPlottingMethod parse_plotting_method(const std::string& value_raw) {
-    const std::string value = to_lower(parse_string(value_raw));
+    const std::string value = config_utils::to_lower(config_utils::parse_string(value_raw));
     if (value == "original" || value == "gnuplot") return DrivenPlottingMethod::Original;
     if (value == "new" || value == "python" || value == "matplotlib") return DrivenPlottingMethod::New;
     throw std::runtime_error("Invalid plotting_method: " + value_raw);
@@ -64,57 +25,57 @@ void set_value(DrivenConfig& config, const std::string& key, const std::string& 
         bool bool_value = false;
 
         if (key == "physical.g" || key == "g") {
-            if (!parse_double(value_text, double_value)) throw std::runtime_error("numeric");
+            if (!config_utils::parse_double(value_text, double_value)) throw std::runtime_error("numeric");
             config.physical.g = double_value;
             return;
         }
         if (key == "physical.L" || key == "L") {
-            if (!parse_double(value_text, double_value)) throw std::runtime_error("numeric");
+            if (!config_utils::parse_double(value_text, double_value)) throw std::runtime_error("numeric");
             config.physical.L = double_value;
             return;
         }
         if (key == "physical.damping" || key == "damping") {
-            if (!parse_double(value_text, double_value)) throw std::runtime_error("numeric");
+            if (!config_utils::parse_double(value_text, double_value)) throw std::runtime_error("numeric");
             config.physical.damping = double_value;
             return;
         }
         if (key == "physical.A" || key == "A") {
-            if (!parse_double(value_text, double_value)) throw std::runtime_error("numeric");
+            if (!config_utils::parse_double(value_text, double_value)) throw std::runtime_error("numeric");
             config.physical.A = double_value;
             return;
         }
         if (key == "physical.omega_drive" || key == "omega_drive") {
-            if (!parse_double(value_text, double_value)) throw std::runtime_error("numeric");
+            if (!config_utils::parse_double(value_text, double_value)) throw std::runtime_error("numeric");
             config.physical.omega_drive = double_value;
             return;
         }
         if (key == "physical.theta0" || key == "theta0") {
-            if (!parse_double(value_text, double_value)) throw std::runtime_error("numeric");
+            if (!config_utils::parse_double(value_text, double_value)) throw std::runtime_error("numeric");
             config.physical.theta0 = double_value;
             return;
         }
         if (key == "physical.omega0" || key == "omega0") {
-            if (!parse_double(value_text, double_value)) throw std::runtime_error("numeric");
+            if (!config_utils::parse_double(value_text, double_value)) throw std::runtime_error("numeric");
             config.physical.omega0 = double_value;
             return;
         }
         if (key == "simulation.t_start" || key == "t_start") {
-            if (!parse_double(value_text, double_value)) throw std::runtime_error("numeric");
+            if (!config_utils::parse_double(value_text, double_value)) throw std::runtime_error("numeric");
             config.simulation.t_start = double_value;
             return;
         }
         if (key == "simulation.t_end" || key == "t_end") {
-            if (!parse_double(value_text, double_value)) throw std::runtime_error("numeric");
+            if (!config_utils::parse_double(value_text, double_value)) throw std::runtime_error("numeric");
             config.simulation.t_end = double_value;
             return;
         }
         if (key == "simulation.dt" || key == "dt") {
-            if (!parse_double(value_text, double_value)) throw std::runtime_error("numeric");
+            if (!config_utils::parse_double(value_text, double_value)) throw std::runtime_error("numeric");
             config.simulation.dt = double_value;
             return;
         }
         if (key == "simulation.output_every" || key == "output_every") {
-            if (!parse_int(value_text, int_value)) throw std::runtime_error("integer");
+            if (!config_utils::parse_int(value_text, int_value)) throw std::runtime_error("integer");
             config.simulation.output_every = int_value;
             return;
         }
@@ -123,30 +84,34 @@ void set_value(DrivenConfig& config, const std::string& key, const std::string& 
             return;
         }
         if (key == "settings.show_plot" || key == "show_plot") {
-            if (!parse_bool(value_text, bool_value)) throw std::runtime_error("boolean");
+            if (!config_utils::parse_bool(value_text, bool_value)) throw std::runtime_error("boolean");
             config.settings.show_plot = bool_value;
             return;
         }
         if (key == "settings.save_png" || key == "save_png") {
-            if (!parse_bool(value_text, bool_value)) throw std::runtime_error("boolean");
+            if (!config_utils::parse_bool(value_text, bool_value)) throw std::runtime_error("boolean");
             config.settings.save_png = bool_value;
             return;
         }
         if (key == "settings.run_plotter" || key == "run_plotter") {
-            if (!parse_bool(value_text, bool_value)) throw std::runtime_error("boolean");
+            if (!config_utils::parse_bool(value_text, bool_value)) throw std::runtime_error("boolean");
             config.settings.run_plotter = bool_value;
             return;
         }
         if (key == "settings.data_file" || key == "data_file") {
-            config.settings.data_file = parse_string(value_text);
+            config.settings.data_file = config_utils::parse_string(value_text);
             return;
         }
         if (key == "settings.output_png" || key == "output_png") {
-            config.settings.output_png = parse_string(value_text);
+            config.settings.output_png = config_utils::parse_string(value_text);
             return;
         }
         if (key == "settings.python_script" || key == "python_script") {
-            config.settings.python_script = parse_string(value_text);
+            config.settings.python_script = config_utils::parse_string(value_text);
+            return;
+        }
+        if (key == "settings.integrator" || key == "integrator") {
+            config.settings.integrator = config_utils::to_lower(config_utils::parse_string(value_text));
             return;
         }
 
@@ -183,7 +148,7 @@ DrivenConfig load_driven_config_from_yaml(const std::string& path) {
             line = line.substr(0, comment_pos);
         }
 
-        if (trim(line).empty() || trim(line) == "---" || trim(line) == "...") {
+        if (config_utils::trim(line).empty() || config_utils::trim(line) == "---" || config_utils::trim(line) == "...") {
             continue;
         }
 
@@ -192,15 +157,15 @@ DrivenConfig load_driven_config_from_yaml(const std::string& path) {
             ++indent;
         }
 
-        const std::string stripped = trim(line);
+        const std::string stripped = config_utils::trim(line);
         const auto colon_pos = stripped.find(':');
         if (colon_pos == std::string::npos) {
             throw std::runtime_error("Invalid config line " + std::to_string(line_number) +
                                      " in " + path + ": expected key: value");
         }
 
-        const std::string key = trim(stripped.substr(0, colon_pos));
-        const std::string value = trim(stripped.substr(colon_pos + 1));
+        const std::string key = config_utils::trim(stripped.substr(0, colon_pos));
+        const std::string value = config_utils::trim(stripped.substr(colon_pos + 1));
 
         if (value.empty()) {
             active_section = key;
@@ -222,6 +187,10 @@ DrivenConfig load_driven_config_from_yaml(const std::string& path) {
     if (config.simulation.dt <= 0.0) throw std::runtime_error("Invalid config: simulation.dt must be > 0");
     if (config.simulation.t_end <= config.simulation.t_start) throw std::runtime_error("Invalid config: simulation.t_end must be > simulation.t_start");
     if (config.simulation.output_every <= 0) throw std::runtime_error("Invalid config: simulation.output_every must be > 0");
+
+    config.settings.data_file = config_utils::resolve_output_path(config.settings.data_file);
+    config.settings.output_png = config_utils::resolve_output_path(config.settings.output_png);
+    config.settings.python_script = config_utils::resolve_output_path(config.settings.python_script);
 
     return config;
 }

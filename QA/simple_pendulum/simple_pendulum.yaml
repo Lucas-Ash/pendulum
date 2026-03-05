@@ -6,3 +6,9 @@ t_max: 20.0
 theta0: 0.05
 omega0: 0.0
 data_file: "QA/simple_pendulum/outputs/simple_pendulum_1.csv"
+#data_file: "simple_pendulum_1.csv"
+integrator: "rk5"
+
+show_plot: false
+save_png: true
+output_png: "QA/simple_pendulum/outputs/simple_pendulum_1.png"

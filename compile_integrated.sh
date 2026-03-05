@@ -5,9 +5,12 @@ g++ -O3 -std=c++17 -I. \
   modules/experiment_config.cpp \
   modules/pendulum_simulator.cpp \
   modules/plotting.cpp \
+  modules/plotting_utils.cpp \
   modules/reporting.cpp \
   modules/runtime_env.cpp \
   modules/simple_io.cpp \
+  modules/config_utils.cpp \
+  modules/error_analysis.cpp \
   modules/damped_config.cpp \
   modules/damped_io.cpp \
   modules/damped_plotting.cpp \

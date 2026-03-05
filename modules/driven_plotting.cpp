@@ -4,6 +4,7 @@
 #include <fstream>
 #include <iostream>
 #include <stdexcept>
+#include "modules/plotting_utils.h"
 
 namespace {
 
@@ -83,11 +84,7 @@ void render_driven_plots(const DrivenConfig& config, const SimulationResult& res
         generate_plot_script(config, result);
         
         if (config.settings.run_plotter) {
-            std::string cmd = "python3 " + config.settings.python_script;
-            int ret = std::system(cmd.c_str());
-            if (ret != 0) {
-                std::cerr << "Warning: Python plotting script returned " << ret << "\n";
-            }
+            plotting_utils::run_python_script(config.settings.python_script);
         }
     } else {
         std::cerr << "Warning: 'original' plotting method (gnuplot) is not implemented for driven pendulum.\n";

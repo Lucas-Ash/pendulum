@@ -80,7 +80,7 @@ int run_simple(const std::string& config_path) {
     std::cout << "Data saved to " << config.data_file << "\n";
 
     print_accuracy_report(config, result);
-    plot_simulation_results(result);
+    plot_simulation_results(config, result);
     // std::cout << "Simple simulation finished successfully. (IO/Plots temporarily disabled)\n";
     return 0;
 }

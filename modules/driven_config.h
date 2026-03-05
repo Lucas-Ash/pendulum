@@ -32,6 +32,7 @@ struct DrivenSettingsConfig {
     std::string data_file = "driven_pendulum_data.csv";
     std::string output_png = "driven_pendulum_comparison.png";
     std::string python_script = "plot_driven_pendulum.py";
+    std::string integrator = "rk4";
 };
 
 struct DrivenConfig {
