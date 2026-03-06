@@ -88,6 +88,11 @@ void set_value(DampedConfig& config, const std::string& key, const std::string& 
             config.settings.save_png = bool_value;
             return;
         }
+        if (key == "settings.plot_phase_map" || key == "plot_phase_map") {
+            if (!config_utils::parse_bool(value_text, bool_value)) throw std::runtime_error("boolean");
+            config.settings.plot_phase_map = bool_value;
+            return;
+        }
         if (key == "settings.run_plotter" || key == "run_plotter") {
             if (!config_utils::parse_bool(value_text, bool_value)) throw std::runtime_error("boolean");
             config.settings.run_plotter = bool_value;

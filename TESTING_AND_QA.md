@@ -152,3 +152,6 @@ RUN_QA_SCRIPT=1 ./tests/run_all_tests.sh --plot-convergence
 
 - You may see compile warnings from `config_utils.cpp` (`std::system` return value not used). This is a warning, not a test failure.
 - QA compare mode may show differences if baseline outputs intentionally changed.
+- Plotting YAML now supports `plot_phase_map`:
+  - simple config: top-level `plot_phase_map` (default `true`)
+  - damped/driven config: `settings.plot_phase_map` (default `false`, with top-level alias `plot_phase_map`)

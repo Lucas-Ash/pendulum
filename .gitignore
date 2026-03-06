@@ -13,3 +13,4 @@ tests/artifacts/convergence/*.png
 AGENTS.md
 debug*
 a.out
+*.csv

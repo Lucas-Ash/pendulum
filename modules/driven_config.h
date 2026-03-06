@@ -28,6 +28,7 @@ struct DrivenSettingsConfig {
     DrivenPlottingMethod plotting_method = DrivenPlottingMethod::New;
     bool show_plot = true;
     bool save_png = true;
+    bool plot_phase_map = false;
     bool run_plotter = true;
     std::string data_file = "driven_pendulum_data.csv";
     std::string output_png = "driven_pendulum_comparison.png";

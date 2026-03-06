@@ -12,4 +12,5 @@ integrator: "rk3"
 analytical_model: "jacobi"
 show_plot: false
 save_png: true
+plot_phase_map: true
 output_png: "QA/simple_pendulum/outputs/simple_pendulum_1.png"

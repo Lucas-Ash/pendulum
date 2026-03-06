@@ -12,6 +12,7 @@ struct ExperimentConfig {
     std::string data_file = "simple_pendulum_data.csv";
     bool show_plot = true;
     bool save_png = true;
+    bool plot_phase_map = true;
     std::string output_png = "simple_pendulum.png";
     std::string integrator = "rk4";
     std::string analytical_model = "linear";

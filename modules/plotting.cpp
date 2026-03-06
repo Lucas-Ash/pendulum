@@ -28,14 +28,23 @@ void plot_simulation_results(const ExperimentConfig& config, const SimulationRes
     plt::grid(true);
 
     plt::subplot2grid(2, 2, 1, 0);
-    plt::named_plot("Trajectory", result.theta, result.omega, "g-");
-    plt::named_plot("Equilibrium", std::vector<double>{0.0}, std::vector<double>{0.0}, "ko");
-    plt::title("Phase Portrait (θ, ω)");
-    plt::xlabel("θ (rad)");
-    plt::ylabel("ω (rad/s)");
-    plt::legend();
-    plt::grid(true);
-    plt::axis("equal");
+    if (config.plot_phase_map) {
+        plt::named_plot("Trajectory", result.theta, result.omega, "g-");
+        plt::named_plot("Equilibrium", std::vector<double>{0.0}, std::vector<double>{0.0}, "ko");
+        plt::title("Phase Portrait (θ, ω)");
+        plt::xlabel("θ (rad)");
+        plt::ylabel("ω (rad/s)");
+        plt::legend();
+        plt::grid(true);
+        plt::axis("equal");
+    } else {
+        plt::named_plot("Energy", result.t, result.energy, "m-");
+        plt::title("Mechanical Energy E(t)");
+        plt::xlabel("Time t (s)");
+        plt::ylabel("E / (m L^2)");
+        plt::legend();
+        plt::grid(true);
+    }
 
     plt::subplot2grid(2, 2, 1, 1);
     plt::named_semilogy("θ error", result.t, result.theta_errors, "b-");

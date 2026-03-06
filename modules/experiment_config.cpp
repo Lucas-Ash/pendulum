@@ -76,6 +76,14 @@ ExperimentConfig load_config_from_yaml(const std::string& path) {
                 throw std::runtime_error("Invalid boolean for save_png");
             }
             continue;
+        } else if (key == "plot_phase_map") {
+            bool bval = false;
+            if (config_utils::parse_bool(value_text, bval)) {
+                config.plot_phase_map = bval;
+            } else {
+                throw std::runtime_error("Invalid boolean for plot_phase_map");
+            }
+            continue;
         } else if (key == "integrator") {
             config.integrator = value_text;
             if (config.integrator.size() >= 2 && 

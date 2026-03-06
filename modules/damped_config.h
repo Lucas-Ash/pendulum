@@ -26,6 +26,7 @@ struct DampedSettingsConfig {
     PlottingMethod plotting_method = PlottingMethod::Original;
     bool show_plot = true;
     bool save_png = true;
+    bool plot_phase_map = false;
     bool run_plotter = true;
     std::string data_file = "damped_pendulum_data.dat";
     std::string output_png = "damped_pendulum.png";

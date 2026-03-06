@@ -31,30 +31,72 @@ bool write_python_plot_script(const DampedConfig& config,
     script << "err_nl = data[:,4]\n";
     script << "err_omega = data[:,5]\n";
     script << "energy_nl = data[:,6]\n\n";
-    script << "fig, axes = plt.subplots(3, 1, figsize=(12, 10), sharex=True)\n";
-    script << "fig.suptitle('Damped Pendulum "
-           << "(theta0=" << config.physical.theta0
-           << " rad, gamma=" << config.physical.gamma << ")', fontsize=14)\n\n";
+    if (settings.plot_phase_map) {
+        script << "fig, axes = plt.subplots(2, 2, figsize=(13, 10))\n";
+        script << "fig.suptitle('Damped Pendulum "
+               << "(theta0=" << config.physical.theta0
+               << " rad, gamma=" << config.physical.gamma << ")', fontsize=14)\n\n";
+        script << "ax_theta = axes[0, 0]\n";
+        script << "ax_err = axes[0, 1]\n";
+        script << "ax_energy = axes[1, 0]\n";
+        script << "ax_phase = axes[1, 1]\n\n";
 
-    script << "axes[0].plot(t, theta_exact, label='Analytical (linearized)', linewidth=2.2)\n";
-    script << "axes[0].plot(t, theta_nl, '-.', label='RK4 nonlinear (sin theta)', linewidth=1.8)\n";
-    script << "axes[0].set_ylabel('theta (rad)')\n";
-    script << "axes[0].set_title('Angular Displacement')\n";
-    script << "axes[0].grid(True, alpha=0.3)\n";
-    script << "axes[0].legend(loc='best')\n\n";
+        script << "ax_theta.plot(t, theta_exact, label='Analytical (linearized)', linewidth=2.2)\n";
+        script << "ax_theta.plot(t, theta_nl, '-.', label='RK4 nonlinear (sin theta)', linewidth=1.8)\n";
+        script << "ax_theta.set_xlabel('Time t (s)')\n";
+        script << "ax_theta.set_ylabel('theta (rad)')\n";
+        script << "ax_theta.set_title('Angular Displacement')\n";
+        script << "ax_theta.grid(True, alpha=0.3)\n";
+        script << "ax_theta.legend(loc='best')\n\n";
 
-    script << "axes[1].semilogy(t, err_nl, label='|RK4 theta nonlinear - exp theta exact|', linewidth=1.6)\n";
-    script << "axes[1].set_ylabel('|Error| (rad)')\n";
-    script << "axes[1].set_title('Absolute Error vs Analytical Solution')\n";
-    script << "axes[1].grid(True, alpha=0.3)\n";
-    script << "axes[1].legend(loc='best')\n\n";
+        script << "ax_err.semilogy(t, err_nl, label='|RK4 theta nonlinear - exp theta exact|', linewidth=1.6)\n";
+        script << "ax_err.set_xlabel('Time t (s)')\n";
+        script << "ax_err.set_ylabel('|Error| (rad)')\n";
+        script << "ax_err.set_title('Absolute Error vs Analytical Solution')\n";
+        script << "ax_err.grid(True, alpha=0.3)\n";
+        script << "ax_err.legend(loc='best')\n\n";
 
-    script << "axes[2].plot(t, energy_nl, label='E(t) nonlinear', linewidth=1.6)\n";
-    script << "axes[2].set_xlabel('Time t (s)')\n";
-    script << "axes[2].set_ylabel('E / (m L^2)')\n";
-    script << "axes[2].set_title('Mechanical Energy (nonlinear pendulum)')\n";
-    script << "axes[2].grid(True, alpha=0.3)\n";
-    script << "axes[2].legend(loc='best')\n\n";
+        script << "ax_energy.plot(t, energy_nl, label='E(t) nonlinear', linewidth=1.6)\n";
+        script << "ax_energy.set_xlabel('Time t (s)')\n";
+        script << "ax_energy.set_ylabel('E / (m L^2)')\n";
+        script << "ax_energy.set_title('Mechanical Energy (nonlinear pendulum)')\n";
+        script << "ax_energy.grid(True, alpha=0.3)\n";
+        script << "ax_energy.legend(loc='best')\n\n";
+
+        script << "ax_phase.plot(theta_nl, omega_nl, label='Phase trajectory', linewidth=1.4)\n";
+        script << "ax_phase.plot([0.0], [0.0], 'ko', label='Equilibrium')\n";
+        script << "ax_phase.set_xlabel('theta (rad)')\n";
+        script << "ax_phase.set_ylabel('omega (rad/s)')\n";
+        script << "ax_phase.set_title('Phase Map (theta, omega)')\n";
+        script << "ax_phase.grid(True, alpha=0.3)\n";
+        script << "ax_phase.legend(loc='best')\n";
+        script << "ax_phase.set_aspect('equal', adjustable='box')\n\n";
+    } else {
+        script << "fig, axes = plt.subplots(3, 1, figsize=(12, 10), sharex=True)\n";
+        script << "fig.suptitle('Damped Pendulum "
+               << "(theta0=" << config.physical.theta0
+               << " rad, gamma=" << config.physical.gamma << ")', fontsize=14)\n\n";
+
+        script << "axes[0].plot(t, theta_exact, label='Analytical (linearized)', linewidth=2.2)\n";
+        script << "axes[0].plot(t, theta_nl, '-.', label='RK4 nonlinear (sin theta)', linewidth=1.8)\n";
+        script << "axes[0].set_ylabel('theta (rad)')\n";
+        script << "axes[0].set_title('Angular Displacement')\n";
+        script << "axes[0].grid(True, alpha=0.3)\n";
+        script << "axes[0].legend(loc='best')\n\n";
+
+        script << "axes[1].semilogy(t, err_nl, label='|RK4 theta nonlinear - exp theta exact|', linewidth=1.6)\n";
+        script << "axes[1].set_ylabel('|Error| (rad)')\n";
+        script << "axes[1].set_title('Absolute Error vs Analytical Solution')\n";
+        script << "axes[1].grid(True, alpha=0.3)\n";
+        script << "axes[1].legend(loc='best')\n\n";
+
+        script << "axes[2].plot(t, energy_nl, label='E(t) nonlinear', linewidth=1.6)\n";
+        script << "axes[2].set_xlabel('Time t (s)')\n";
+        script << "axes[2].set_ylabel('E / (m L^2)')\n";
+        script << "axes[2].set_title('Mechanical Energy (nonlinear pendulum)')\n";
+        script << "axes[2].grid(True, alpha=0.3)\n";
+        script << "axes[2].legend(loc='best')\n\n";
+    }
 
     script << "plt.tight_layout()\n";
     if (settings.save_png) {
@@ -85,22 +127,32 @@ bool render_with_gnuplot(const DampedConfig& config,
         return false;
     }
 
+    fprintf(gp,
+        "set encoding utf8\n"
+        "set grid lw 0.5\n"
+        "set style line 1 lc rgb '#0060ad' lw 2.5 dt 1\n"
+        "set style line 2 lc rgb '#dd181f' lw 2.0 dt 2\n"
+        "set style line 3 lc rgb '#228B22' lw 2.0 dt 4\n"
+        "set style line 4 lc rgb '#dd181f' lw 1.5\n"
+        "set style line 5 lc rgb '#228B22' lw 1.5\n"
+        "set style line 6 lc rgb '#8B008B' lw 1.5\n"
+        "set style line 7 lc rgb '#444444' lw 1.8\n");
+
     if (settings.show_plot) {
         fprintf(gp,
-            "set terminal qt size 1100,850 enhanced font 'Arial,11'\n"
-            "set encoding utf8\n"
-            "set grid lw 0.5\n"
-            "set style line 1 lc rgb '#0060ad' lw 2.5 dt 1\n"
-            "set style line 2 lc rgb '#dd181f' lw 2.0 dt 2\n"
-            "set style line 3 lc rgb '#228B22' lw 2.0 dt 4\n"
-            "set style line 4 lc rgb '#dd181f' lw 1.5\n"
-            "set style line 5 lc rgb '#228B22' lw 1.5\n"
-            "set style line 6 lc rgb '#8B008B' lw 1.5\n");
+            "set terminal qt size 1100,850 enhanced font 'Arial,11'\n");
 
-        fprintf(gp,
-            "set multiplot layout 3,1 title "
-            "'Damped Pendulum  (theta0=%.2f rad, gamma=%.2f)' font ',14'\n",
-            p.theta0, p.gamma);
+        if (settings.plot_phase_map) {
+            fprintf(gp,
+                "set multiplot layout 2,2 title "
+                "'Damped Pendulum  (theta0=%.2f rad, gamma=%.2f)' font ',14'\n",
+                p.theta0, p.gamma);
+        } else {
+            fprintf(gp,
+                "set multiplot layout 3,1 title "
+                "'Damped Pendulum  (theta0=%.2f rad, gamma=%.2f)' font ',14'\n",
+                p.theta0, p.gamma);
+        }
 
         fprintf(gp,
             "set xlabel 'Time t (s)'\n"
@@ -127,6 +179,16 @@ bool render_with_gnuplot(const DampedConfig& config,
             "set title 'Mechanical Energy (nonlinear pendulum)' font ',12'\n"
             "plot '%s' u 1:7 w l ls 6 title 'E(t) nonlinear'\n",
             settings.data_file.c_str());
+
+        if (settings.plot_phase_map) {
+            fprintf(gp,
+                "set xlabel 'theta (rad)'\n"
+                "set ylabel 'omega (rad/s)'\n"
+                "set title 'Phase Map (theta, omega)' font ',12'\n"
+                "plot '%s' u 3:4 w l ls 7 title 'Phase trajectory',"
+                "     ''   u (0):(0) w p pt 7 ps 1.1 lc rgb '#000000' title 'Equilibrium'\n",
+                settings.data_file.c_str());
+        }
 
         fprintf(gp, "unset multiplot\n");
         fflush(gp);
@@ -138,10 +200,17 @@ bool render_with_gnuplot(const DampedConfig& config,
             "set output '%s'\n",
             settings.output_png.c_str());
 
-        fprintf(gp,
-            "set multiplot layout 3,1 title "
-            "'Damped Pendulum  (theta0=%.2f rad, gamma=%.2f)' font ',14'\n",
-            p.theta0, p.gamma);
+        if (settings.plot_phase_map) {
+            fprintf(gp,
+                "set multiplot layout 2,2 title "
+                "'Damped Pendulum  (theta0=%.2f rad, gamma=%.2f)' font ',14'\n",
+                p.theta0, p.gamma);
+        } else {
+            fprintf(gp,
+                "set multiplot layout 3,1 title "
+                "'Damped Pendulum  (theta0=%.2f rad, gamma=%.2f)' font ',14'\n",
+                p.theta0, p.gamma);
+        }
 
         fprintf(gp,
             "set xlabel 'Time t (s)'\n"
@@ -168,6 +237,16 @@ bool render_with_gnuplot(const DampedConfig& config,
             "set title 'Mechanical Energy (nonlinear pendulum)' font ',12'\n"
             "plot '%s' u 1:7 w l ls 6 title 'E(t) nonlinear'\n",
             settings.data_file.c_str());
+
+        if (settings.plot_phase_map) {
+            fprintf(gp,
+                "set xlabel 'theta (rad)'\n"
+                "set ylabel 'omega (rad/s)'\n"
+                "set title 'Phase Map (theta, omega)' font ',12'\n"
+                "plot '%s' u 3:4 w l ls 7 title 'Phase trajectory',"
+                "     ''   u (0):(0) w p pt 7 ps 1.1 lc rgb '#000000' title 'Equilibrium'\n",
+                settings.data_file.c_str());
+        }
 
         fprintf(gp, "unset multiplot\n");
         fflush(gp);

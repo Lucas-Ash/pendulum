@@ -21,6 +21,7 @@ TEST(ExperimentConfigLoadsValidYaml) {
         "data_file: \"qa/out.csv\"\n"
         "show_plot: false\n"
         "save_png: true\n"
+        "plot_phase_map: false\n"
         "output_png: \"qa/out.png\"\n"
         "integrator: \"RK5\"\n"
         "analytical_model: \"Jacobi\"\n");
@@ -35,6 +36,7 @@ TEST(ExperimentConfigLoadsValidYaml) {
     EXPECT_EQ(cfg.data_file, "qa/out.csv");
     EXPECT_FALSE(cfg.show_plot);
     EXPECT_TRUE(cfg.save_png);
+    EXPECT_FALSE(cfg.plot_phase_map);
     EXPECT_EQ(cfg.output_png, "qa/out.png");
     EXPECT_EQ(cfg.integrator, "rk5");
     EXPECT_EQ(cfg.analytical_model, "jacobi");
@@ -58,6 +60,7 @@ TEST(ExperimentConfigMissingOptionalUsesDefaults) {
     EXPECT_EQ(cfg.data_file, "simple_pendulum_data.csv");
     EXPECT_TRUE(cfg.show_plot);
     EXPECT_TRUE(cfg.save_png);
+    EXPECT_TRUE(cfg.plot_phase_map);
     EXPECT_EQ(cfg.output_png, "simple_pendulum.png");
     EXPECT_EQ(cfg.integrator, "rk4");
     EXPECT_EQ(cfg.analytical_model, "linear");
@@ -123,6 +126,7 @@ TEST(DampedConfigLoadsValidYamlAndNestedSections) {
         "  plotting_method: new\n"
         "  show_plot: false\n"
         "  save_png: false\n"
+        "  plot_phase_map: true\n"
         "  run_plotter: false\n"
         "  data_file: \"damped.dat\"\n"
         "  output_png: \"damped.png\"\n"
@@ -137,6 +141,7 @@ TEST(DampedConfigLoadsValidYamlAndNestedSections) {
     EXPECT_EQ(cfg.settings.integrator, "rk3");
     EXPECT_EQ(cfg.settings.data_file, "damped.dat");
     EXPECT_EQ(to_string(cfg.settings.plotting_method), "new");
+    EXPECT_TRUE(cfg.settings.plot_phase_map);
 }
 
 TEST(DampedConfigDefaultsAndValidation) {
@@ -153,6 +158,7 @@ TEST(DampedConfigDefaultsAndValidation) {
     const DampedConfig cfg = load_damped_config_from_yaml(minimal.string());
     EXPECT_NEAR(cfg.physical.g, 9.81, 1e-12);
     EXPECT_EQ(cfg.settings.integrator, "rk4");
+    EXPECT_FALSE(cfg.settings.plot_phase_map);
     EXPECT_EQ(to_string(PlottingMethod::Original), "original");
     EXPECT_EQ(to_string(PlottingMethod::New), "new");
 
@@ -183,6 +189,7 @@ TEST(DrivenConfigLoadsValidYamlAndValidation) {
         "  plotting_method: original\n"
         "  show_plot: false\n"
         "  save_png: false\n"
+        "  plot_phase_map: true\n"
         "  run_plotter: false\n"
         "  data_file: \"driven.csv\"\n"
         "  output_png: \"driven.png\"\n"
@@ -196,6 +203,7 @@ TEST(DrivenConfigLoadsValidYamlAndValidation) {
     EXPECT_EQ(cfg.settings.integrator, "rk5");
     EXPECT_EQ(cfg.settings.data_file, "driven.csv");
     EXPECT_EQ(to_string(cfg.settings.plotting_method), "original");
+    EXPECT_TRUE(cfg.settings.plot_phase_map);
 
     const auto invalid = temp.write_file(
         "driven_invalid.yaml",
@@ -221,4 +229,5 @@ TEST(DrivenConfigOutputPathResolvesWithoutQaEnv) {
     EXPECT_EQ(cfg.settings.data_file, "outputs/c.csv");
     EXPECT_EQ(cfg.settings.output_png, "outputs/c.png");
     EXPECT_EQ(cfg.settings.python_script, "outputs/c.py");
+    EXPECT_FALSE(cfg.settings.plot_phase_map);
 }

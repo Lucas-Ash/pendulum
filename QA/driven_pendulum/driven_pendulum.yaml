@@ -19,6 +19,7 @@ settings:
   plotting_method: new
   show_plot: false
   save_png: true
+  plot_phase_map: true
   run_plotter: true
   data_file: "QA/driven_pendulum/outputs/driven_pendulum_data.csv"
   output_png: "QA/driven_pendulum/outputs/driven_pendulum_comparison.png"
