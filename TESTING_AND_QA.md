@@ -155,3 +155,14 @@ RUN_QA_SCRIPT=1 ./tests/run_all_tests.sh --plot-convergence
 - Plotting YAML now supports `plot_phase_map`:
   - simple config: top-level `plot_phase_map` (default `true`)
   - damped/driven config: `settings.plot_phase_map` (default `false`, with top-level alias `plot_phase_map`)
+- Restoring-force model options are now supported in all simulation configs:
+  - `restoring_force_model`: `sine` (default) or `polynomial`
+  - `restoring_force_linear`: linear term coefficient (default `1.0`)
+  - `restoring_force_cubic`: cubic term coefficient (default `0.0`)
+  - damped/driven support `physical.*` and top-level aliases for these keys
+- Error-analysis options are supported in all simulation configs:
+  - `error_analysis` / `error_mode`: `analytical` (default), `none`, or `hd_reference`
+  - `error_reference_factor`: refinement factor for `hd_reference` mode (default `50`)
+  - simple supports top-level keys; damped/driven support `settings.*` and top-level aliases
+- For simple (undamped) runs, `analytical_model: duffing_jacobi` enables a Jacobi-elliptic analytical reference for the polynomial Duffing case.
+- QA now includes `QA/duffing_oscillator/duffing_undamped.yaml`.

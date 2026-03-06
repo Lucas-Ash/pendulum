@@ -102,6 +102,34 @@ ExperimentConfig load_config_from_yaml(const std::string& path) {
             }
             config.analytical_model = config_utils::to_lower(config.analytical_model);
             continue;
+        } else if (key == "error_analysis" || key == "error_mode") {
+            const std::string mode_name = config_utils::to_lower(config_utils::parse_string(value_text));
+            error_reference::Mode mode = error_reference::Mode::Analytical;
+            if (!error_reference::parse_mode_name(mode_name, mode)) {
+                throw std::runtime_error(
+                    "Invalid error analysis mode '" + mode_name +
+                    "'. Use 'analytical', 'none', or 'hd_reference'.");
+            }
+            config.error_mode = mode;
+            continue;
+        } else if (key == "error_reference_factor" || key == "reference_factor") {
+            int factor = 0;
+            if (!config_utils::parse_int(value_text, factor)) {
+                throw std::runtime_error(
+                    "Invalid integer for error_reference_factor");
+            }
+            config.error_reference_factor = factor;
+            continue;
+        } else if (key == "restoring_force_model" || key == "restoring_model") {
+            const std::string model_name = config_utils::to_lower(config_utils::parse_string(value_text));
+            restoring_force::Model model = restoring_force::Model::Sine;
+            if (!restoring_force::parse_model_name(model_name, model)) {
+                throw std::runtime_error(
+                    "Invalid restoring force model '" + model_name +
+                    "'. Use 'sine' or 'polynomial'.");
+            }
+            config.restoring_force.model = model;
+            continue;
         }
 
         double value = 0.0;
@@ -126,6 +154,10 @@ ExperimentConfig load_config_from_yaml(const std::string& path) {
             config.theta0 = value;
         } else if (key == "omega0") {
             config.omega0 = value;
+        } else if (key == "restoring_force_linear" || key == "restoring_linear") {
+            config.restoring_force.linear = value;
+        } else if (key == "restoring_force_cubic" || key == "restoring_cubic") {
+            config.restoring_force.cubic = value;
         } else {
             std::cerr << "Warning: unknown config key '" << key << "' ignored." << std::endl;
         }
@@ -142,6 +174,14 @@ ExperimentConfig load_config_from_yaml(const std::string& path) {
     }
     if (config.t_max <= 0.0) {
         throw std::runtime_error("Invalid config: t_max must be > 0");
+    }
+    if (config.error_reference_factor <= 0) {
+        throw std::runtime_error("Invalid config: error_reference_factor must be > 0");
+    }
+    if (config.error_mode == error_reference::Mode::HdReference &&
+        config.error_reference_factor < 2) {
+        throw std::runtime_error(
+            "Invalid config: error_reference_factor must be >= 2 for hd_reference mode");
     }
 
     config.data_file = config_utils::resolve_output_path(config.data_file);

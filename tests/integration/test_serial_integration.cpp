@@ -76,8 +76,11 @@ Trajectory run_simple_serial_case(
     const auto output_path = temp.child(cfg.data_file);
     std::filesystem::create_directories(output_path.parent_path());
 
-    PendulumSimulator simulator(cfg.length, cfg.gravity, cfg.dt, cfg.t_max);
-    const SimulationResult result = simulator.simulate(cfg.theta0, cfg.omega0, cfg.integrator, cfg.analytical_model);
+    PendulumSimulator simulator(
+        cfg.length, cfg.gravity, cfg.dt, cfg.t_max, cfg.restoring_force);
+    const SimulationResult result = simulator.simulate(
+        cfg.theta0, cfg.omega0, cfg.integrator, cfg.analytical_model,
+        cfg.error_mode, cfg.error_reference_factor);
     write_simple_data_file(output_path.string(), result);
 
     const CsvData csv = read_csv(output_path);
@@ -218,8 +221,11 @@ TEST(SerialIntegrationSimplePendulumFlowWritesExpectedCsv) {
     const auto output_path = temp.child(cfg.data_file);
     std::filesystem::create_directories(output_path.parent_path());
 
-    PendulumSimulator simulator(cfg.length, cfg.gravity, cfg.dt, cfg.t_max);
-    const SimulationResult result = simulator.simulate(cfg.theta0, cfg.omega0, cfg.integrator, cfg.analytical_model);
+    PendulumSimulator simulator(
+        cfg.length, cfg.gravity, cfg.dt, cfg.t_max, cfg.restoring_force);
+    const SimulationResult result = simulator.simulate(
+        cfg.theta0, cfg.omega0, cfg.integrator, cfg.analytical_model,
+        cfg.error_mode, cfg.error_reference_factor);
     write_simple_data_file(output_path.string(), result);
 
     const CsvData csv = read_csv(output_path);
@@ -228,6 +234,82 @@ TEST(SerialIntegrationSimplePendulumFlowWritesExpectedCsv) {
     EXPECT_NEAR(csv.rows.front()[0], 0.0, 1e-9);
     EXPECT_NEAR(csv.rows.back()[0], cfg.t_max, 1e-6);
     EXPECT_TRUE(std::fabs(csv.rows.back()[2]) < 1.0);
+}
+
+TEST(SerialIntegrationDuffingUndampedFlowWritesExpectedCsv) {
+    EnvVarGuard guard("QA_TEST");
+    guard.set("1");
+
+    TempDir temp;
+    const auto config_path = temp.write_file(
+        "duffing.yaml",
+        "length: 1.0\n"
+        "gravity: 9.81\n"
+        "dt: 0.001\n"
+        "t_max: 3.0\n"
+        "theta0: 0.45\n"
+        "omega0: 0.0\n"
+        "integrator: rk5\n"
+        "analytical_model: duffing_jacobi\n"
+        "restoring_force_model: polynomial\n"
+        "restoring_force_linear: 1.0\n"
+        "restoring_force_cubic: 0.35\n"
+        "data_file: \"serial/duffing.csv\"\n"
+        "show_plot: false\n"
+        "save_png: false\n");
+
+    const ExperimentConfig cfg = load_config_from_yaml(config_path.string());
+    const auto output_path = temp.child(cfg.data_file);
+    std::filesystem::create_directories(output_path.parent_path());
+
+    PendulumSimulator simulator(
+        cfg.length, cfg.gravity, cfg.dt, cfg.t_max, cfg.restoring_force);
+    const SimulationResult result =
+        simulator.simulate(cfg.theta0, cfg.omega0, cfg.integrator, cfg.analytical_model,
+                           cfg.error_mode, cfg.error_reference_factor);
+    write_simple_data_file(output_path.string(), result);
+
+    const CsvData csv = read_csv(output_path);
+    const size_t expected_rows = static_cast<size_t>(std::round(cfg.t_max / cfg.dt)) + 1u;
+    EXPECT_EQ(csv.rows.size(), expected_rows);
+    EXPECT_TRUE(result.theta_stats.max_abs < 1e-2);
+}
+
+TEST(SerialIntegrationSimplePendulumHdReferenceFlowWritesExpectedCsv) {
+    EnvVarGuard guard("QA_TEST");
+    guard.set("1");
+
+    TempDir temp;
+    const auto config_path = temp.write_file(
+        "simple_hd.yaml",
+        "length: 1.0\n"
+        "gravity: 9.81\n"
+        "dt: 0.01\n"
+        "t_max: 2.0\n"
+        "theta0: 0.6\n"
+        "omega0: 0.0\n"
+        "integrator: rk4\n"
+        "analytical_model: jacobi\n"
+        "error_analysis: hd_reference\n"
+        "error_reference_factor: 50\n"
+        "data_file: \"serial/simple_hd.csv\"\n"
+        "show_plot: false\n"
+        "save_png: false\n");
+
+    const ExperimentConfig cfg = load_config_from_yaml(config_path.string());
+    const auto output_path = temp.child(cfg.data_file);
+    std::filesystem::create_directories(output_path.parent_path());
+
+    PendulumSimulator simulator(
+        cfg.length, cfg.gravity, cfg.dt, cfg.t_max, cfg.restoring_force);
+    const SimulationResult result = simulator.simulate(
+        cfg.theta0, cfg.omega0, cfg.integrator, cfg.analytical_model,
+        cfg.error_mode, cfg.error_reference_factor);
+    write_simple_data_file(output_path.string(), result);
+
+    const CsvData csv = read_csv(output_path);
+    EXPECT_FALSE(csv.rows.empty());
+    EXPECT_TRUE(result.theta_stats.max_abs < 5e-2);
 }
 
 TEST(SerialIntegrationDampedPendulumFlowWritesExpectedDat) {

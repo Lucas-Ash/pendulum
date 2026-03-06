@@ -1,6 +1,8 @@
 #pragma once
 
 #include <string>
+#include "modules/error_reference.h"
+#include "modules/restoring_force.h"
 
 enum class PlottingMethod {
     Original,  // gnuplot workflow
@@ -13,6 +15,7 @@ struct DampedPhysicalConfig {
     double gamma = 0.3;
     double theta0 = 0.3;
     double theta_dot0 = 0.0;
+    restoring_force::Config restoring_force;
 };
 
 struct DampedSimulationConfig {
@@ -32,6 +35,8 @@ struct DampedSettingsConfig {
     std::string output_png = "damped_pendulum.png";
     std::string python_script = "plot_damped_pendulum.py";
     std::string integrator = "rk4";
+    error_reference::Mode error_mode = error_reference::Mode::Analytical;
+    int error_reference_factor = 50;
 };
 
 struct DampedConfig {

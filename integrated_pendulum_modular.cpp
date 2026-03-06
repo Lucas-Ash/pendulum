@@ -73,8 +73,12 @@ int run_simple(const std::string& config_path) {
               << ", theta0=" << config.theta0 << ", omega0=" << config.omega0
               << std::endl;
 
-    PendulumSimulator pendulum(config.length, config.gravity, config.dt, config.t_max);
-    SimulationResult result = pendulum.simulate(config.theta0, config.omega0, config.integrator, config.analytical_model);
+    PendulumSimulator pendulum(
+        config.length, config.gravity, config.dt, config.t_max,
+        config.restoring_force);
+    SimulationResult result = pendulum.simulate(
+        config.theta0, config.omega0, config.integrator, config.analytical_model,
+        config.error_mode, config.error_reference_factor);
 
     write_simple_data_file(config.data_file, result);
     std::cout << "Data saved to " << config.data_file << "\n";

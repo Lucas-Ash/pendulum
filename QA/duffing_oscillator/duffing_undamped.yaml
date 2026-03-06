@@ -1,0 +1,20 @@
+# Undamped Duffing oscillator runtime configuration
+# Equation: theta'' + (g/L)*(a1*theta + a3*theta^3) = 0
+length: 1.0
+gravity: 9.81
+dt: 0.01
+t_max: 6.0
+theta0: 0.45
+omega0: 0.0
+data_file: "QA/duffing_oscillator/outputs/duffing_undamped.csv"
+integrator: "rk5"
+#error_analysis: hd_reference
+#error_reference_factor: 50
+analytical_model: "duffing_jacobi"
+restoring_force_model: "polynomial"
+restoring_force_linear: 1.0
+restoring_force_cubic: 0.35
+show_plot: false
+save_png: true
+plot_phase_map: true
+output_png: "QA/duffing_oscillator/outputs/duffing_undamped.png"

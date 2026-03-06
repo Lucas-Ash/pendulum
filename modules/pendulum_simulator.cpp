@@ -5,10 +5,47 @@
 
 #include <algorithm>
 #include <cmath>
+#include <stdexcept>
+
+namespace {
+
+template <typename DerivFunc>
+integrator::State advance_state(const std::string& method,
+                                double t,
+                                double dt,
+                                const integrator::State& state,
+                                DerivFunc derivs) {
+    if (method == "rk3") {
+        return integrator::rk3_step(t, dt, state, derivs);
+    }
+    if (method == "rk5") {
+        return integrator::rk5_step(t, dt, state, derivs);
+    }
+    if (method == "semi_implicit_euler") {
+        return integrator::semi_implicit_euler_step(t, dt, state, derivs);
+    }
+    if (method == "leapfrog") {
+        return integrator::leapfrog_step(t, dt, state, derivs);
+    }
+    if (method == "ruth4") {
+        return integrator::ruth4_step(t, dt, state, derivs);
+    }
+    if (method == "rk23") {
+        return integrator::rk23_step(t, dt, state, derivs);
+    }
+    if (method == "rkf45") {
+        return integrator::rkf45_step(t, dt, state, derivs);
+    }
+    return integrator::rk4_step(t, dt, state, derivs);
+}
+
+}  // namespace
 
 PendulumSimulator::PendulumSimulator(double length, double gravity,
-                                     double timestep, double tmax)
-    : g_(gravity), L_(length), dt_(timestep), t_max_(tmax) {}
+                                     double timestep, double tmax,
+                                     restoring_force::Config restoring_force)
+    : g_(gravity), L_(length), dt_(timestep), t_max_(tmax),
+      restoring_force_(restoring_force) {}
 
 double PendulumSimulator::gravity() const { return g_; }
 double PendulumSimulator::length() const { return L_; }
@@ -16,18 +53,40 @@ double PendulumSimulator::dt() const { return dt_; }
 double PendulumSimulator::t_max() const { return t_max_; }
 
 
+void PendulumSimulator::exact_harmonic_state(double t, double theta0, double omega0,
+                                             double omega_natural,
+                                             double& theta_exact,
+                                             double& omega_exact) {
+    if (omega_natural < 1e-15) {
+        theta_exact = theta0 + omega0 * t;
+        omega_exact = omega0;
+        return;
+    }
+
+    const double c = std::cos(omega_natural * t);
+    const double s = std::sin(omega_natural * t);
+    theta_exact = theta0 * c + (omega0 / omega_natural) * s;
+    omega_exact = -theta0 * omega_natural * s + omega0 * c;
+}
 
 void PendulumSimulator::exact_linear_state(double t, double theta0, double omega0,
                                            double& theta_exact, double& omega_exact) const {
-    const double wn = std::sqrt(g_ / L_);
-    const double c = std::cos(wn * t);
-    const double s = std::sin(wn * t);
-    theta_exact = theta0 * c + (omega0 / wn) * s;
-    omega_exact = -theta0 * wn * s + omega0 * c;
+    const double wn_sq = (g_ / L_) * restoring_force::linearized_slope(restoring_force_);
+    if (wn_sq < 0.0) {
+        throw std::runtime_error(
+            "Linear analytical model requires positive linearized restoring stiffness.");
+    }
+    exact_harmonic_state(t, theta0, omega0, std::sqrt(std::max(wn_sq, 0.0)),
+                         theta_exact, omega_exact);
 }
 
 void PendulumSimulator::exact_nonlinear_state(double t, double theta0, double omega0,
                                               double& theta_exact, double& omega_exact) const {
+    if (restoring_force_.model == restoring_force::Model::Polynomial) {
+        exact_duffing_state(t, theta0, omega0, theta_exact, omega_exact);
+        return;
+    }
+
     const double wn = std::sqrt(g_ / L_);
     
     // Total dimensionless energy E / (m*g*L)
@@ -94,60 +153,170 @@ void PendulumSimulator::exact_nonlinear_state(double t, double theta0, double om
     omega_exact = 2.0 * wn * k * cn;
 }
 
-SimulationResult PendulumSimulator::simulate(double theta0, double omega0, const std::string& integrator, const std::string& analytical_model) const {
+void PendulumSimulator::exact_duffing_state(double t, double theta0, double omega0,
+                                            double& theta_exact, double& omega_exact) const {
+    if (restoring_force_.model != restoring_force::Model::Polynomial) {
+        throw std::runtime_error(
+            "Duffing analytical solution requires polynomial restoring force.");
+    }
+
+    const double alpha = (g_ / L_) * restoring_force_.linear;
+    const double beta = (g_ / L_) * restoring_force_.cubic;
+
+    if (std::abs(beta) < 1e-15) {
+        if (alpha < 0.0) {
+            throw std::runtime_error(
+                "Duffing analytical fallback requires non-negative linear coefficient.");
+        }
+        exact_harmonic_state(t, theta0, omega0, std::sqrt(std::max(alpha, 0.0)),
+                             theta_exact, omega_exact);
+        return;
+    }
+    if (beta < 0.0) {
+        throw std::runtime_error(
+            "Duffing Jacobi analytical solution currently requires restoring_force_cubic > 0.");
+    }
+    if (alpha < 0.0) {
+        throw std::runtime_error(
+            "Duffing Jacobi analytical solution currently requires restoring_force_linear >= 0.");
+    }
+
+    const double theta0_sq = theta0 * theta0;
+    const double energy = 0.5 * omega0 * omega0
+                        + 0.5 * alpha * theta0_sq
+                        + 0.25 * beta * theta0_sq * theta0_sq;
+
+    const double discr = alpha * alpha + 4.0 * beta * energy;
+    if (discr < 0.0) {
+        throw std::runtime_error(
+            "Duffing analytical solution failed: negative turning-point discriminant.");
+    }
+
+    const double amplitude_sq = (-alpha + std::sqrt(discr)) / beta;
+    if (amplitude_sq < -1e-12) {
+        throw std::runtime_error(
+            "Duffing analytical solution failed: computed negative amplitude^2.");
+    }
+
+    const double amplitude = std::sqrt(std::max(0.0, amplitude_sq));
+    if (amplitude < 1e-15) {
+        theta_exact = 0.0;
+        omega_exact = 0.0;
+        return;
+    }
+
+    const double omega_sq = alpha + beta * amplitude_sq;
+    if (omega_sq <= 0.0) {
+        throw std::runtime_error(
+            "Duffing analytical solution requires alpha + beta*A^2 > 0.");
+    }
+    const double omega = std::sqrt(omega_sq);
+
+    const double m = (beta * amplitude_sq) / (2.0 * omega_sq);
+    if (m < -1e-12 || m > 1.0 + 1e-12) {
+        throw std::runtime_error(
+            "Duffing analytical solution produced Jacobi parameter outside [0, 1].");
+    }
+    const double m_clamped = std::max(0.0, std::min(1.0, m));
+
+    double cn0 = theta0 / amplitude;
+    cn0 = std::max(-1.0, std::min(1.0, cn0));
+    const double phi0 = std::acos(cn0);
+    const double u_abs = std::ellint_1(std::sqrt(m_clamped), phi0);
+    const double u0 = (omega0 >= 0.0) ? -u_abs : u_abs;
+
+    double sn = 0.0;
+    double cn = 1.0;
+    double dn = 1.0;
+    math_utils::jacobi_sn_cn_dn(omega * t + u0, m_clamped, sn, cn, dn);
+
+    theta_exact = amplitude * cn;
+    omega_exact = -amplitude * omega * sn * dn;
+}
+
+SimulationResult PendulumSimulator::simulate(
+    double theta0,
+    double omega0,
+    const std::string& integrator,
+    const std::string& analytical_model,
+    error_reference::Mode error_mode,
+    int error_reference_factor) const {
     SimulationResult result;
 
-    double t = 0.0;
-    double theta = theta0;
-    double omega = omega0;
+    if (error_reference_factor <= 0) {
+        throw std::runtime_error("error_reference_factor must be > 0");
+    }
+    if (error_mode == error_reference::Mode::HdReference &&
+        error_reference_factor < 2) {
+        throw std::runtime_error(
+            "hd_reference mode requires error_reference_factor >= 2");
+    }
 
-    while (t <= t_max_ + 1e-12) {
+    const int nsteps = static_cast<int>(t_max_ / dt_ + 0.5);
+    const double dt_ref = dt_ / static_cast<double>(error_reference_factor);
+    double t_ref = 0.0;
+
+    integrator::State state = {theta0, omega0};
+    integrator::State state_ref = state;
+
+    auto derivs = [this](double t_val, const integrator::State& s) -> integrator::State {
+        return {s.omega,
+                -(g_ / L_) * restoring_force::term(s.theta, restoring_force_)};
+    };
+
+    for (int n = 0; n <= nsteps; ++n) {
+        const double t = n * dt_;
+        const double theta = state.theta;
+        const double omega = state.omega;
+
         result.t.push_back(t);
         result.theta.push_back(theta);
         result.omega.push_back(omega);
         
         double theta_ref = 0.0;
         double omega_ref = 0.0;
-        if (analytical_model == "jacobi") {
-            exact_nonlinear_state(t, theta0, omega0, theta_ref, omega_ref);
+        if (error_mode == error_reference::Mode::None) {
+            theta_ref = theta;
+            omega_ref = omega;
+        } else if (error_mode == error_reference::Mode::HdReference) {
+            theta_ref = state_ref.theta;
+            omega_ref = state_ref.omega;
         } else {
-            exact_linear_state(t, theta0, omega0, theta_ref, omega_ref);
+            const bool wants_duffing_analytical =
+                analytical_model == "duffing_jacobi" ||
+                analytical_model == "duffing";
+            if (wants_duffing_analytical ||
+                (analytical_model == "jacobi" &&
+                 restoring_force_.model == restoring_force::Model::Polynomial)) {
+                exact_duffing_state(t, theta0, omega0, theta_ref, omega_ref);
+            } else if (analytical_model == "jacobi") {
+                exact_nonlinear_state(t, theta0, omega0, theta_ref, omega_ref);
+            } else {
+                exact_linear_state(t, theta0, omega0, theta_ref, omega_ref);
+            }
         }
         result.theta_analytical.push_back(theta_ref);
         result.omega_analytical.push_back(omega_ref);
         
-        double energy = 0.5 * omega * omega + (g_ / L_) * (1.0 - std::cos(theta));
+        double energy = 0.5 * omega * omega +
+                        (g_ / L_) *
+                        restoring_force::potential(theta, restoring_force_);
         result.energy.push_back(energy);
 
-        auto derivs = [this](double t_val, const integrator::State& s) -> integrator::State {
-            return {s.omega, -(g_ / L_) * std::sin(s.theta)};
-        };
-
-        integrator::State state = {theta, omega};
-        if (integrator == "rk3") {
-            state = integrator::rk3_step(t, dt_, state, derivs);
-        } else if (integrator == "rk5") {
-            state = integrator::rk5_step(t, dt_, state, derivs);
-        } else if (integrator == "semi_implicit_euler") {
-            state = integrator::semi_implicit_euler_step(t, dt_, state, derivs);
-        } else if (integrator == "leapfrog") {
-            state = integrator::leapfrog_step(t, dt_, state, derivs);
-        } else if (integrator == "ruth4") {
-            state = integrator::ruth4_step(t, dt_, state, derivs);
-        } else if (integrator == "rk23") {
-            state = integrator::rk23_step(t, dt_, state, derivs);
-        } else if (integrator == "rkf45") {
-            state = integrator::rkf45_step(t, dt_, state, derivs);
-        } else {
-            state = integrator::rk4_step(t, dt_, state, derivs);
+        if (n < nsteps) {
+            state = advance_state(integrator, t, dt_, state, derivs);
+            if (error_mode == error_reference::Mode::HdReference) {
+                for (int k = 0; k < error_reference_factor; ++k) {
+                    state_ref = advance_state(
+                        integrator, t_ref, dt_ref, state_ref, derivs);
+                    t_ref += dt_ref;
+                }
+            }
         }
-        theta = state.theta;
-        omega = state.omega;
-        t += dt_;
     }
 
     compute_error_statistics(result);
-    result.rk4_steps = result.t.size() - 1;
+    result.rk4_steps = nsteps;
 
     return result;
 }

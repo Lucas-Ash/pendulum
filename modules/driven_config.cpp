@@ -59,6 +59,29 @@ void set_value(DrivenConfig& config, const std::string& key, const std::string& 
             config.physical.omega0 = double_value;
             return;
         }
+        if (key == "physical.restoring_force_model" || key == "restoring_force_model" ||
+            key == "physical.restoring_model" || key == "restoring_model") {
+            const std::string model_name = config_utils::to_lower(config_utils::parse_string(value_text));
+            restoring_force::Model model = restoring_force::Model::Sine;
+            if (!restoring_force::parse_model_name(model_name, model)) {
+                throw std::runtime_error(
+                    "restoring_force_model must be 'sine' or 'polynomial'");
+            }
+            config.physical.restoring_force.model = model;
+            return;
+        }
+        if (key == "physical.restoring_force_linear" || key == "restoring_force_linear" ||
+            key == "physical.restoring_linear" || key == "restoring_linear") {
+            if (!config_utils::parse_double(value_text, double_value)) throw std::runtime_error("numeric");
+            config.physical.restoring_force.linear = double_value;
+            return;
+        }
+        if (key == "physical.restoring_force_cubic" || key == "restoring_force_cubic" ||
+            key == "physical.restoring_cubic" || key == "restoring_cubic") {
+            if (!config_utils::parse_double(value_text, double_value)) throw std::runtime_error("numeric");
+            config.physical.restoring_force.cubic = double_value;
+            return;
+        }
         if (key == "simulation.t_start" || key == "t_start") {
             if (!config_utils::parse_double(value_text, double_value)) throw std::runtime_error("numeric");
             config.simulation.t_start = double_value;
@@ -117,6 +140,23 @@ void set_value(DrivenConfig& config, const std::string& key, const std::string& 
         }
         if (key == "settings.integrator" || key == "integrator") {
             config.settings.integrator = config_utils::to_lower(config_utils::parse_string(value_text));
+            return;
+        }
+        if (key == "settings.error_analysis" || key == "error_analysis" ||
+            key == "settings.error_mode" || key == "error_mode") {
+            const std::string mode_name = config_utils::to_lower(config_utils::parse_string(value_text));
+            error_reference::Mode mode = error_reference::Mode::Analytical;
+            if (!error_reference::parse_mode_name(mode_name, mode)) {
+                throw std::runtime_error(
+                    "error_analysis must be 'analytical', 'none', or 'hd_reference'");
+            }
+            config.settings.error_mode = mode;
+            return;
+        }
+        if (key == "settings.error_reference_factor" || key == "error_reference_factor" ||
+            key == "settings.reference_factor" || key == "reference_factor") {
+            if (!config_utils::parse_int(value_text, int_value)) throw std::runtime_error("integer");
+            config.settings.error_reference_factor = int_value;
             return;
         }
 
@@ -192,6 +232,12 @@ DrivenConfig load_driven_config_from_yaml(const std::string& path) {
     if (config.simulation.dt <= 0.0) throw std::runtime_error("Invalid config: simulation.dt must be > 0");
     if (config.simulation.t_end <= config.simulation.t_start) throw std::runtime_error("Invalid config: simulation.t_end must be > simulation.t_start");
     if (config.simulation.output_every <= 0) throw std::runtime_error("Invalid config: simulation.output_every must be > 0");
+    if (config.settings.error_reference_factor <= 0) throw std::runtime_error("Invalid config: settings.error_reference_factor must be > 0");
+    if (config.settings.error_mode == error_reference::Mode::HdReference &&
+        config.settings.error_reference_factor < 2) {
+        throw std::runtime_error(
+            "Invalid config: settings.error_reference_factor must be >= 2 for hd_reference mode");
+    }
 
     config.settings.data_file = config_utils::resolve_output_path(config.settings.data_file);
     config.settings.output_png = config_utils::resolve_output_path(config.settings.output_png);

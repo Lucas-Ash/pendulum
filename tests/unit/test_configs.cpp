@@ -24,7 +24,12 @@ TEST(ExperimentConfigLoadsValidYaml) {
         "plot_phase_map: false\n"
         "output_png: \"qa/out.png\"\n"
         "integrator: \"RK5\"\n"
-        "analytical_model: \"Jacobi\"\n");
+        "analytical_model: \"Jacobi\"\n"
+        "error_analysis: hd_reference\n"
+        "error_reference_factor: 80\n"
+        "restoring_force_model: polynomial\n"
+        "restoring_force_linear: 1.2\n"
+        "restoring_force_cubic: 0.35\n");
 
     const ExperimentConfig cfg = load_config_from_yaml(path.string());
     EXPECT_NEAR(cfg.length, 2.0, 1e-12);
@@ -40,6 +45,11 @@ TEST(ExperimentConfigLoadsValidYaml) {
     EXPECT_EQ(cfg.output_png, "qa/out.png");
     EXPECT_EQ(cfg.integrator, "rk5");
     EXPECT_EQ(cfg.analytical_model, "jacobi");
+    EXPECT_TRUE(cfg.error_mode == error_reference::Mode::HdReference);
+    EXPECT_EQ(cfg.error_reference_factor, 80);
+    EXPECT_TRUE(cfg.restoring_force.model == restoring_force::Model::Polynomial);
+    EXPECT_NEAR(cfg.restoring_force.linear, 1.2, 1e-12);
+    EXPECT_NEAR(cfg.restoring_force.cubic, 0.35, 1e-12);
 }
 
 TEST(ExperimentConfigMissingOptionalUsesDefaults) {
@@ -64,6 +74,11 @@ TEST(ExperimentConfigMissingOptionalUsesDefaults) {
     EXPECT_EQ(cfg.output_png, "simple_pendulum.png");
     EXPECT_EQ(cfg.integrator, "rk4");
     EXPECT_EQ(cfg.analytical_model, "linear");
+    EXPECT_TRUE(cfg.error_mode == error_reference::Mode::Analytical);
+    EXPECT_EQ(cfg.error_reference_factor, 50);
+    EXPECT_TRUE(cfg.restoring_force.model == restoring_force::Model::Sine);
+    EXPECT_NEAR(cfg.restoring_force.linear, 1.0, 1e-12);
+    EXPECT_NEAR(cfg.restoring_force.cubic, 0.0, 1e-12);
 }
 
 TEST(ExperimentConfigInvalidYamlThrows) {
@@ -117,6 +132,9 @@ TEST(DampedConfigLoadsValidYamlAndNestedSections) {
         "  gamma: 0.3\n"
         "  theta0: 0.4\n"
         "  theta_dot0: -0.2\n"
+        "  restoring_force_model: polynomial\n"
+        "  restoring_force_linear: 0.9\n"
+        "  restoring_force_cubic: 0.2\n"
         "simulation:\n"
         "  t_start: 0.0\n"
         "  t_end: 3.0\n"
@@ -127,6 +145,8 @@ TEST(DampedConfigLoadsValidYamlAndNestedSections) {
         "  show_plot: false\n"
         "  save_png: false\n"
         "  plot_phase_map: true\n"
+        "  error_analysis: none\n"
+        "  error_reference_factor: 64\n"
         "  run_plotter: false\n"
         "  data_file: \"damped.dat\"\n"
         "  output_png: \"damped.png\"\n"
@@ -142,6 +162,11 @@ TEST(DampedConfigLoadsValidYamlAndNestedSections) {
     EXPECT_EQ(cfg.settings.data_file, "damped.dat");
     EXPECT_EQ(to_string(cfg.settings.plotting_method), "new");
     EXPECT_TRUE(cfg.settings.plot_phase_map);
+    EXPECT_TRUE(cfg.settings.error_mode == error_reference::Mode::None);
+    EXPECT_EQ(cfg.settings.error_reference_factor, 64);
+    EXPECT_TRUE(cfg.physical.restoring_force.model == restoring_force::Model::Polynomial);
+    EXPECT_NEAR(cfg.physical.restoring_force.linear, 0.9, 1e-12);
+    EXPECT_NEAR(cfg.physical.restoring_force.cubic, 0.2, 1e-12);
 }
 
 TEST(DampedConfigDefaultsAndValidation) {
@@ -159,6 +184,9 @@ TEST(DampedConfigDefaultsAndValidation) {
     EXPECT_NEAR(cfg.physical.g, 9.81, 1e-12);
     EXPECT_EQ(cfg.settings.integrator, "rk4");
     EXPECT_FALSE(cfg.settings.plot_phase_map);
+    EXPECT_TRUE(cfg.settings.error_mode == error_reference::Mode::Analytical);
+    EXPECT_EQ(cfg.settings.error_reference_factor, 50);
+    EXPECT_TRUE(cfg.physical.restoring_force.model == restoring_force::Model::Sine);
     EXPECT_EQ(to_string(PlottingMethod::Original), "original");
     EXPECT_EQ(to_string(PlottingMethod::New), "new");
 
@@ -180,6 +208,9 @@ TEST(DrivenConfigLoadsValidYamlAndValidation) {
         "  omega_drive: 1.1\n"
         "  theta0: 0.05\n"
         "  omega0: 0.01\n"
+        "  restoring_force_model: polynomial\n"
+        "  restoring_force_linear: 1.05\n"
+        "  restoring_force_cubic: 0.15\n"
         "simulation:\n"
         "  t_start: 0.0\n"
         "  t_end: 4.0\n"
@@ -190,6 +221,8 @@ TEST(DrivenConfigLoadsValidYamlAndValidation) {
         "  show_plot: false\n"
         "  save_png: false\n"
         "  plot_phase_map: true\n"
+        "  error_analysis: hd_reference\n"
+        "  error_reference_factor: 55\n"
         "  run_plotter: false\n"
         "  data_file: \"driven.csv\"\n"
         "  output_png: \"driven.png\"\n"
@@ -204,6 +237,11 @@ TEST(DrivenConfigLoadsValidYamlAndValidation) {
     EXPECT_EQ(cfg.settings.data_file, "driven.csv");
     EXPECT_EQ(to_string(cfg.settings.plotting_method), "original");
     EXPECT_TRUE(cfg.settings.plot_phase_map);
+    EXPECT_TRUE(cfg.settings.error_mode == error_reference::Mode::HdReference);
+    EXPECT_EQ(cfg.settings.error_reference_factor, 55);
+    EXPECT_TRUE(cfg.physical.restoring_force.model == restoring_force::Model::Polynomial);
+    EXPECT_NEAR(cfg.physical.restoring_force.linear, 1.05, 1e-12);
+    EXPECT_NEAR(cfg.physical.restoring_force.cubic, 0.15, 1e-12);
 
     const auto invalid = temp.write_file(
         "driven_invalid.yaml",

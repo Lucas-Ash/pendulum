@@ -1,6 +1,8 @@
 #pragma once
 
 #include <string>
+#include "modules/error_reference.h"
+#include "modules/restoring_force.h"
 
 enum class DrivenPlottingMethod {
     Original,  // gnuplot workflow
@@ -15,6 +17,7 @@ struct DrivenPhysicalConfig {
     double omega_drive = 1.2;
     double theta0 = 0.1;
     double omega0 = 0.0;
+    restoring_force::Config restoring_force;
 };
 
 struct DrivenSimulationConfig {
@@ -34,6 +37,8 @@ struct DrivenSettingsConfig {
     std::string output_png = "driven_pendulum_comparison.png";
     std::string python_script = "plot_driven_pendulum.py";
     std::string integrator = "rk4";
+    error_reference::Mode error_mode = error_reference::Mode::Analytical;
+    int error_reference_factor = 50;
 };
 
 struct DrivenConfig {

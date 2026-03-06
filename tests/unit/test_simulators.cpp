@@ -91,6 +91,47 @@ TEST(PendulumSimulatorIntegratorChoicesAllSane) {
     EXPECT_TRUE(std::fabs(rk3.theta.back() - rk5.theta.back()) < 2e-2);
 }
 
+TEST(PendulumSimulatorDuffingJacobiReferenceTracksNumericalSolution) {
+    restoring_force::Config restoring;
+    restoring.model = restoring_force::Model::Polynomial;
+    restoring.linear = 1.0;
+    restoring.cubic = 0.35;
+
+    PendulumSimulator sim(1.0, 9.81, 0.0005, 6.0, restoring);
+    const SimulationResult out = sim.simulate(0.45, 0.0, "rk5", "duffing_jacobi");
+
+    EXPECT_FALSE(out.t.empty());
+    EXPECT_NEAR(out.theta.front(), out.theta_analytical.front(), 1e-12);
+    EXPECT_NEAR(out.omega.front(), out.omega_analytical.front(), 1e-12);
+    EXPECT_TRUE(out.theta_stats.max_abs < 5e-3);
+    EXPECT_TRUE(out.omega_stats.max_abs < 5e-2);
+
+    const double min_e = *std::min_element(out.energy.begin(), out.energy.end());
+    const double max_e = *std::max_element(out.energy.begin(), out.energy.end());
+    EXPECT_TRUE((max_e - min_e) < 2e-3);
+}
+
+TEST(PendulumSimulatorCanDisableErrorAnalysis) {
+    PendulumSimulator sim(1.0, 9.81, 0.002, 3.0);
+    const SimulationResult out = sim.simulate(
+        0.35, 0.0, "rk4", "jacobi", error_reference::Mode::None, 50);
+
+    EXPECT_FALSE(out.t.empty());
+    EXPECT_TRUE(out.theta_stats.max_abs < 1e-15);
+    EXPECT_TRUE(out.omega_stats.max_abs < 1e-15);
+}
+
+TEST(PendulumSimulatorSupportsHdReferenceErrorAnalysis) {
+    PendulumSimulator sim(1.0, 9.81, 0.01, 2.0);
+    const SimulationResult out = sim.simulate(
+        0.7, -0.1, "rk4", "jacobi", error_reference::Mode::HdReference, 50);
+
+    EXPECT_FALSE(out.t.empty());
+    EXPECT_TRUE(out.theta_stats.max_abs < 5e-2);
+    EXPECT_TRUE(out.theta_stats.max_abs > 1e-10);
+    EXPECT_TRUE(out.omega_stats.max_abs < 2e-1);
+}
+
 TEST(DampedSimulatorShowsDecayAndEnergyDissipation) {
     DampedConfig cfg;
     cfg.physical.gamma = 0.2;
@@ -124,6 +165,40 @@ TEST(DampedSimulatorRejectsNonUnderdampedParameters) {
 
     DampedPendulumSimulator sim(cfg);
     EXPECT_THROW(sim.simulate());
+}
+
+TEST(DampedSimulatorPolynomialRestoringRuns) {
+    DampedConfig cfg;
+    cfg.physical.gamma = 0.2;
+    cfg.physical.theta0 = 0.4;
+    cfg.physical.theta_dot0 = 0.0;
+    cfg.physical.restoring_force.model = restoring_force::Model::Polynomial;
+    cfg.physical.restoring_force.linear = 1.0;
+    cfg.physical.restoring_force.cubic = 0.3;
+    cfg.simulation.t_start = 0.0;
+    cfg.simulation.t_end = 6.0;
+    cfg.simulation.dt = 0.002;
+
+    DampedPendulumSimulator sim(cfg);
+    const SimulationResult out = sim.simulate();
+    EXPECT_FALSE(out.t.empty());
+    EXPECT_FINITE(max_in_vector(out.theta_errors));
+}
+
+TEST(DampedSimulatorHdReferenceErrorAnalysisRuns) {
+    DampedConfig cfg;
+    cfg.physical.gamma = 0.1;
+    cfg.physical.theta0 = 0.5;
+    cfg.simulation.t_end = 4.0;
+    cfg.simulation.dt = 0.01;
+    cfg.settings.error_mode = error_reference::Mode::HdReference;
+    cfg.settings.error_reference_factor = 50;
+    cfg.settings.integrator = "rk4";
+
+    DampedPendulumSimulator sim(cfg);
+    const SimulationResult out = sim.simulate();
+    EXPECT_FALSE(out.t.empty());
+    EXPECT_TRUE(out.theta_stats.max_abs < 5e-2);
 }
 
 TEST(DrivenSimulatorSteadyStateAndPhaseLocking) {
@@ -176,4 +251,37 @@ TEST(DrivenSimulatorParameterSweepRunsAndStaysFinite) {
         EXPECT_FALSE(out.t.empty());
         EXPECT_FINITE(max_in_vector(out.theta_errors));
     }
+}
+
+TEST(DrivenSimulatorPolynomialRestoringRuns) {
+    DrivenConfig cfg;
+    cfg.physical.damping = 0.25;
+    cfg.physical.A = 0.3;
+    cfg.physical.omega_drive = 1.1;
+    cfg.physical.restoring_force.model = restoring_force::Model::Polynomial;
+    cfg.physical.restoring_force.linear = 1.0;
+    cfg.physical.restoring_force.cubic = 0.2;
+    cfg.simulation.t_end = 5.0;
+    cfg.simulation.dt = 0.002;
+
+    DrivenPendulumSimulator sim(cfg);
+    const SimulationResult out = sim.simulate();
+    EXPECT_FALSE(out.t.empty());
+    EXPECT_FINITE(max_in_vector(out.theta_errors));
+}
+
+TEST(DrivenSimulatorCanDisableErrorAnalysis) {
+    DrivenConfig cfg;
+    cfg.physical.damping = 0.3;
+    cfg.physical.A = 0.4;
+    cfg.physical.omega_drive = 1.1;
+    cfg.simulation.t_end = 3.0;
+    cfg.simulation.dt = 0.01;
+    cfg.settings.error_mode = error_reference::Mode::None;
+    cfg.settings.integrator = "rk4";
+
+    DrivenPendulumSimulator sim(cfg);
+    const SimulationResult out = sim.simulate();
+    EXPECT_FALSE(out.t.empty());
+    EXPECT_TRUE(out.theta_stats.max_abs < 1e-15);
 }
