@@ -24,6 +24,12 @@ void print_damped_simulation_summary(const DampedConfig& config,
     std::cout << "  L           = " << p.L << " m\n";
     std::cout << "  omega_0     = " << omega0 << " rad/s\n";
     std::cout << "  gamma       = " << p.gamma << " s^-1\n";
+    std::cout << "  damping     = " << damping_force::to_string(p.damping_model);
+    if (p.damping_model == damping_force::Model::Polynomial) {
+        std::cout << " (linear=" << 2.0 * p.gamma
+                  << ", cubic=" << p.damping_cubic << ")";
+    }
+    std::cout << "\n";
     std::cout << "  restoring   = "
               << restoring_force::to_string(p.restoring_force.model);
     if (p.restoring_force.model == restoring_force::Model::Polynomial) {
@@ -47,6 +53,7 @@ void print_damped_simulation_summary(const DampedConfig& config,
     std::cout << "  RK4 steps   = " << result.rk4_steps << "\n";
     std::cout << "  Data points = " << result.t.size() << "\n";
     std::cout << "  Plot method = " << to_string(settings.plotting_method) << "\n";
+    std::cout << "  Analytical  = " << settings.analytical_model << "\n";
     std::cout << "  Error mode  = "
               << error_reference::to_string(settings.error_mode);
     if (settings.error_mode == error_reference::Mode::HdReference) {

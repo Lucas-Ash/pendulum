@@ -26,6 +26,11 @@ namespace {
         return integrator::rk4_step(t, dt, state, derivs);
     }
 
+    double damping_term(double theta, double omega, const DrivenPhysicalConfig& p) {
+        return damping_force::term(
+            theta, omega, p.damping_model, p.damping, p.damping_cubic);
+    }
+
     void analytical_solution(double t, const DrivenPhysicalConfig& p,
                              double omega_linearized_sq,
                              double& theta_exact, double& omega_exact) {
@@ -99,6 +104,11 @@ SimulationResult DrivenPendulumSimulator::simulate() const {
             throw std::runtime_error(
                 "Driven analytical reference requires positive linearized stiffness.");
         }
+        if (std::abs(p.damping_cubic) > 1e-15) {
+            throw std::runtime_error(
+                "Driven analytical reference does not support damping_cubic != 0. "
+                "Use error_analysis: hd_reference or none for polynomial damping.");
+        }
     }
 
     integrator::State state = {p.theta0, p.omega0};
@@ -112,7 +122,7 @@ SimulationResult DrivenPendulumSimulator::simulate() const {
     result.rk4_steps = nsteps;
 
     auto derivs = [&p, omega0_sq](double t_val, const integrator::State& state_val) -> integrator::State {
-        return {state_val.omega, -p.damping * state_val.omega
+        return {state_val.omega, -damping_term(state_val.theta, state_val.omega, p)
                                - omega0_sq * restoring_force::term(state_val.theta, p.restoring_force)
                                + p.A * std::cos(p.omega_drive * t_val)};
     };

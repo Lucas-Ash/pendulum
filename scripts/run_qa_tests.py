@@ -14,6 +14,8 @@ Options:
 
 import argparse
 import csv
+from dataclasses import dataclass
+import os
 import re
 import shutil
 import subprocess
@@ -126,7 +128,6 @@ def compare_data(
 
 def run_simulation(exec_path: Path, config_path: Path, cwd: Path) -> subprocess.CompletedProcess:
     """Run the pendulum simulation for a config file."""
-    import os
     env = os.environ.copy()
     env["QA_TEST"] = "1"
     return subprocess.run(
@@ -137,6 +138,96 @@ def run_simulation(exec_path: Path, config_path: Path, cwd: Path) -> subprocess.
         text=True,
         timeout=120,
     )
+
+
+@dataclass(frozen=True)
+class AnalysisRegression:
+    name: str
+    baseline_path: Path
+    generated_path: Path
+    command: list[str]
+    timeout_seconds: int = 300
+
+
+def build_analysis_regressions(project_root: Path) -> list[AnalysisRegression]:
+    return [
+        AnalysisRegression(
+            name="driven_bifurcation_v",
+            baseline_path=project_root / "QA" / "driven_pendulum" / "outputs" / "driven_bifurcation_v_reference.csv",
+            generated_path=project_root / "outputs" / "qa_driven_bifurcation_v.csv",
+            command=[
+                sys.executable,
+                str(project_root / "scripts" / "analyze_driven_chaos.py"),
+                "bifurcation",
+                "--base-config",
+                str(project_root / "QA" / "driven_bifurcation.yaml"),
+                "--parameter",
+                "damping",
+                "--min",
+                "0.725",
+                "--max",
+                "0.746",
+                "--steps",
+                "64",
+                "--warmup-periods",
+                "160",
+                "--sample-periods",
+                "24",
+                "--steps-per-period",
+                "240",
+                "--workers",
+                "1",
+                "--section-coordinate",
+                "v",
+                "--output-prefix",
+                "qa_driven_bifurcation_v",
+            ],
+        ),
+    ]
+
+
+def run_analysis_regression(case: AnalysisRegression, cwd: Path) -> subprocess.CompletedProcess:
+    env = os.environ.copy()
+    env.setdefault("MPLBACKEND", "Agg")
+    return subprocess.run(
+        case.command,
+        cwd=str(cwd),
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=case.timeout_seconds,
+    )
+
+
+def print_comparison_result(result: dict, relative_path: str, tolerance: float) -> bool:
+    if "error" in result:
+        print(f"\n  {result['name']} / {result['file']}: {result['error']}")
+        return False
+
+    row_issue = ""
+    if not result["row_match"]:
+        row_issue = (
+            f" (ROW COUNT: baseline={result['baseline_rows']} vs new={result['new_rows']})"
+        )
+    print(f"\n  {result['name']}: {relative_path}{row_issue}")
+
+    ok = result["row_match"]
+    for col in (result["columns"] or list(result["max_abs_diff"].keys())):
+        if col not in result["max_abs_diff"]:
+            continue
+        max_d = result["max_abs_diff"][col]
+        mean_d = result["mean_abs_diff"][col]
+        rmse = result["rmse"][col]
+        max_r = result["max_rel_diff"][col]
+        status = "OK" if max_d < tolerance else "DIFF"
+        if max_d >= tolerance:
+            ok = False
+        print(
+            f"    {col}: max_abs={max_d:.2e} mean_abs={mean_d:.2e} "
+            f"rmse={rmse:.2e} max_rel={max_r:.2e} [{status}]"
+        )
+
+    return ok
 
 
 def main():
@@ -226,49 +317,74 @@ def main():
         output_paths = [(n, p) for n, p in output_paths if n not in failed_stems]
 
     # Compare if requested
+    all_ok = True
     if args.compare and baseline_dir:
         print("\n" + "=" * 60)
         print("Comparison: new results vs baseline (existing outputs)")
         print("=" * 60)
 
-        all_ok = True
         for name, new_path in output_paths:
             rel = new_path.relative_to(project_root)
             baseline_path = baseline_dir / rel
             r = compare_data(baseline_path, new_path, name)
-
-            if "error" in r:
-                print(f"\n  {r['name']} / {r['file']}: {r['error']}")
-                all_ok = False
-                continue
-
-            row_issue = "" if r["row_match"] else f" (ROW COUNT: baseline={r['baseline_rows']} vs new={r['new_rows']})"
-            print(f"\n  {r['name']}: {rel}{row_issue}")
-            if not r["row_match"]:
-                all_ok = False
-
-            tol = args.tolerance
-            for col in (r["columns"] or list(r["max_abs_diff"].keys())):
-                if col not in r["max_abs_diff"]:
-                    continue
-                max_d = r["max_abs_diff"][col]
-                mean_d = r["mean_abs_diff"][col]
-                rmse = r["rmse"][col]
-                max_r = r["max_rel_diff"][col]
-                status = "OK" if max_d < tol else "DIFF"
-                if max_d >= tol:
-                    all_ok = False
-                print(f"    {col}: max_abs={max_d:.2e} mean_abs={mean_d:.2e} rmse={rmse:.2e} max_rel={max_r:.2e} [{status}]")
+            all_ok = print_comparison_result(r, str(rel), args.tolerance) and all_ok
 
         shutil.rmtree(baseline_dir, ignore_errors=True)
 
+    analysis_failures = []
+    analysis_regressions = build_analysis_regressions(project_root)
+    analysis_results: list[tuple[AnalysisRegression, dict]] = []
+
+    if analysis_regressions:
+        print("\nRunning analysis regressions...\n")
+        for case in analysis_regressions:
+            print(f"  [{case.name}]", end=" ")
+            proc = run_analysis_regression(case, project_root)
+            if proc.returncode != 0:
+                print("FAILED")
+                analysis_failures.append((case.name, proc.stderr or proc.stdout or ""))
+                continue
+
+            if not case.generated_path.exists():
+                print("FAILED")
+                analysis_failures.append(
+                    (case.name, f"Expected analysis output was not generated: {case.generated_path}")
+                )
+                continue
+
+            print("OK")
+            if args.compare:
+                analysis_results.append(
+                    (
+                        case,
+                        compare_data(case.baseline_path, case.generated_path, case.name),
+                    )
+                )
+
+    if analysis_failures:
+        print("\nAnalysis regression failures:")
+        for name, err in analysis_failures:
+            print(f"  {name}:")
+            for line in (err or "").strip().split("\n")[-8:]:
+                print(f"    {line}")
+        all_ok = False
+
+    if args.compare and analysis_results:
+        print("\n" + "=" * 60)
+        print("Comparison: driven-chaos analysis vs reference values")
+        print("=" * 60)
+        for case, result in analysis_results:
+            rel = case.generated_path.relative_to(project_root)
+            all_ok = print_comparison_result(result, str(rel), args.tolerance) and all_ok
+
+    if args.compare:
         if all_ok:
             print(f"\n  All comparisons within numerical tolerance (max_abs < {args.tolerance}).")
         else:
             print("\n  Some differences detected. Review the metrics above.")
 
     print("\nDone.")
-    if failed:
+    if failed or analysis_failures or (args.compare and not all_ok):
         sys.exit(1)
 
 

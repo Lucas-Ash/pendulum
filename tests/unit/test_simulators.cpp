@@ -185,6 +185,31 @@ TEST(DampedSimulatorPolynomialRestoringRuns) {
     EXPECT_FINITE(max_in_vector(out.theta_errors));
 }
 
+TEST(DampedSimulatorVanDerPolAnalyticalReferenceTracksWeaklyNonlinearLimitCycle) {
+    DampedConfig cfg;
+    cfg.physical.g = 1.0;
+    cfg.physical.L = 1.0;
+    cfg.physical.gamma = -0.025;
+    cfg.physical.damping_model = damping_force::Model::Polynomial;
+    cfg.physical.damping_cubic = 0.05;
+    cfg.physical.theta0 = 2.0;
+    cfg.physical.theta_dot0 = 0.0;
+    cfg.physical.restoring_force.model = restoring_force::Model::Polynomial;
+    cfg.physical.restoring_force.linear = 1.0;
+    cfg.physical.restoring_force.cubic = 0.0;
+    cfg.simulation.t_end = 12.0;
+    cfg.simulation.dt = 0.002;
+    cfg.settings.integrator = "rk5";
+    cfg.settings.analytical_model = "van_der_pol";
+
+    DampedPendulumSimulator sim(cfg);
+    const SimulationResult out = sim.simulate();
+
+    EXPECT_FALSE(out.t.empty());
+    EXPECT_TRUE(out.theta_stats.max_abs < 6e-3);
+    EXPECT_TRUE(out.omega_stats.max_abs < 8e-3);
+}
+
 TEST(DampedSimulatorHdReferenceErrorAnalysisRuns) {
     DampedConfig cfg;
     cfg.physical.gamma = 0.1;
@@ -199,6 +224,32 @@ TEST(DampedSimulatorHdReferenceErrorAnalysisRuns) {
     const SimulationResult out = sim.simulate();
     EXPECT_FALSE(out.t.empty());
     EXPECT_TRUE(out.theta_stats.max_abs < 5e-2);
+}
+
+TEST(DampedSimulatorStrongVanDerPolHdReferenceRuns) {
+    DampedConfig cfg;
+    cfg.physical.g = 1.0;
+    cfg.physical.L = 1.0;
+    cfg.physical.damping_model = damping_force::Model::Polynomial;
+    cfg.physical.gamma = -4.0;
+    cfg.physical.damping_cubic = 8.0;
+    cfg.physical.theta0 = 2.0;
+    cfg.physical.theta_dot0 = 0.0;
+    cfg.physical.restoring_force.model = restoring_force::Model::Polynomial;
+    cfg.physical.restoring_force.linear = 1.0;
+    cfg.physical.restoring_force.cubic = 0.0;
+    cfg.simulation.t_end = 10.0;
+    cfg.simulation.dt = 0.001;
+    cfg.settings.error_mode = error_reference::Mode::HdReference;
+    cfg.settings.error_reference_factor = 20;
+    cfg.settings.integrator = "rk5";
+
+    DampedPendulumSimulator sim(cfg);
+    const SimulationResult out = sim.simulate();
+
+    EXPECT_FALSE(out.t.empty());
+    EXPECT_TRUE(out.theta_stats.max_abs < 2e-1);
+    EXPECT_TRUE(out.omega_stats.max_abs < 8e-1);
 }
 
 TEST(DrivenSimulatorSteadyStateAndPhaseLocking) {
@@ -268,6 +319,27 @@ TEST(DrivenSimulatorPolynomialRestoringRuns) {
     const SimulationResult out = sim.simulate();
     EXPECT_FALSE(out.t.empty());
     EXPECT_FINITE(max_in_vector(out.theta_errors));
+}
+
+TEST(DrivenSimulatorPolynomialDampingRunsWithHdReference) {
+    DrivenConfig cfg;
+    cfg.physical.damping = -0.05;
+    cfg.physical.damping_model = damping_force::Model::Polynomial;
+    cfg.physical.damping_cubic = 0.1;
+    cfg.physical.A = 0.2;
+    cfg.physical.omega_drive = 0.9;
+    cfg.physical.restoring_force.model = restoring_force::Model::Polynomial;
+    cfg.physical.restoring_force.linear = 1.0;
+    cfg.physical.restoring_force.cubic = 0.0;
+    cfg.simulation.t_end = 3.0;
+    cfg.simulation.dt = 0.01;
+    cfg.settings.error_mode = error_reference::Mode::HdReference;
+    cfg.settings.error_reference_factor = 50;
+
+    DrivenPendulumSimulator sim(cfg);
+    const SimulationResult out = sim.simulate();
+    EXPECT_FALSE(out.t.empty());
+    EXPECT_TRUE(out.theta_stats.max_abs < 1e-1);
 }
 
 TEST(DrivenSimulatorCanDisableErrorAnalysis) {

@@ -9,9 +9,26 @@
 
 namespace {
 
+std::string reference_label(const DampedConfig& config) {
+    if (config.settings.error_mode == error_reference::Mode::HdReference) {
+        return "High-resolution reference";
+    }
+    if (config.settings.analytical_model == "van_der_pol" ||
+        config.settings.analytical_model == "van_der_pol_first_order") {
+        return "Van der Pol asymptotic reference";
+    }
+    return "Analytical reference";
+}
+
+std::string numerical_label(const DampedConfig& config) {
+    return config.settings.integrator + " numerical trajectory";
+}
+
 bool write_python_plot_script(const DampedConfig& config,
                               const SimulationResult& result) {
     const auto& settings = config.settings;
+    const std::string ref_label = reference_label(config);
+    const std::string num_label = numerical_label(config);
 
     std::ofstream script(settings.python_script);
     if (!script.is_open()) {
@@ -41,18 +58,18 @@ bool write_python_plot_script(const DampedConfig& config,
         script << "ax_energy = axes[1, 0]\n";
         script << "ax_phase = axes[1, 1]\n\n";
 
-        script << "ax_theta.plot(t, theta_exact, label='Analytical (linearized)', linewidth=2.2)\n";
-        script << "ax_theta.plot(t, theta_nl, '-.', label='RK4 nonlinear (sin theta)', linewidth=1.8)\n";
+        script << "ax_theta.plot(t, theta_exact, label='" << ref_label << "', linewidth=2.2)\n";
+        script << "ax_theta.plot(t, theta_nl, '-.', label='" << num_label << "', linewidth=1.8)\n";
         script << "ax_theta.set_xlabel('Time t (s)')\n";
         script << "ax_theta.set_ylabel('theta (rad)')\n";
         script << "ax_theta.set_title('Angular Displacement')\n";
         script << "ax_theta.grid(True, alpha=0.3)\n";
         script << "ax_theta.legend(loc='best')\n\n";
 
-        script << "ax_err.semilogy(t, err_nl, label='|RK4 theta nonlinear - exp theta exact|', linewidth=1.6)\n";
+        script << "ax_err.semilogy(t, err_nl, label='|theta - reference|', linewidth=1.6)\n";
         script << "ax_err.set_xlabel('Time t (s)')\n";
         script << "ax_err.set_ylabel('|Error| (rad)')\n";
-        script << "ax_err.set_title('Absolute Error vs Analytical Solution')\n";
+        script << "ax_err.set_title('Absolute Error vs Reference')\n";
         script << "ax_err.grid(True, alpha=0.3)\n";
         script << "ax_err.legend(loc='best')\n\n";
 
@@ -70,23 +87,26 @@ bool write_python_plot_script(const DampedConfig& config,
         script << "ax_phase.set_title('Phase Map (theta, omega)')\n";
         script << "ax_phase.grid(True, alpha=0.3)\n";
         script << "ax_phase.legend(loc='best')\n";
-        script << "ax_phase.set_aspect('equal', adjustable='box')\n\n";
+        if (config.physical.damping_model == damping_force::Model::Linear) {
+            script << "ax_phase.set_aspect('equal', adjustable='box')\n";
+        }
+        script << "\n";
     } else {
         script << "fig, axes = plt.subplots(3, 1, figsize=(12, 10), sharex=True)\n";
         script << "fig.suptitle('Damped Pendulum "
                << "(theta0=" << config.physical.theta0
                << " rad, gamma=" << config.physical.gamma << ")', fontsize=14)\n\n";
 
-        script << "axes[0].plot(t, theta_exact, label='Analytical (linearized)', linewidth=2.2)\n";
-        script << "axes[0].plot(t, theta_nl, '-.', label='RK4 nonlinear (sin theta)', linewidth=1.8)\n";
+        script << "axes[0].plot(t, theta_exact, label='" << ref_label << "', linewidth=2.2)\n";
+        script << "axes[0].plot(t, theta_nl, '-.', label='" << num_label << "', linewidth=1.8)\n";
         script << "axes[0].set_ylabel('theta (rad)')\n";
         script << "axes[0].set_title('Angular Displacement')\n";
         script << "axes[0].grid(True, alpha=0.3)\n";
         script << "axes[0].legend(loc='best')\n\n";
 
-        script << "axes[1].semilogy(t, err_nl, label='|RK4 theta nonlinear - exp theta exact|', linewidth=1.6)\n";
+        script << "axes[1].semilogy(t, err_nl, label='|theta - reference|', linewidth=1.6)\n";
         script << "axes[1].set_ylabel('|Error| (rad)')\n";
-        script << "axes[1].set_title('Absolute Error vs Analytical Solution')\n";
+        script << "axes[1].set_title('Absolute Error vs Reference')\n";
         script << "axes[1].grid(True, alpha=0.3)\n";
         script << "axes[1].legend(loc='best')\n\n";
 
@@ -119,6 +139,8 @@ bool render_with_gnuplot(const DampedConfig& config,
                          const SimulationResult& result) {
     const auto& settings = config.settings;
     const auto& p = config.physical;
+    const std::string ref_label = reference_label(config);
+    const std::string num_label = numerical_label(config);
     const char* gnuplot_cmd = settings.show_plot ? "gnuplot -persistent" : "gnuplot";
 
     FILE* gp = popen(gnuplot_cmd, "w");
@@ -159,17 +181,17 @@ bool render_with_gnuplot(const DampedConfig& config,
             "set ylabel 'theta (rad)'\n"
             "set title 'Angular Displacement' font ',12'\n"
             "set key top right\n"
-            "plot '%s' u 1:2 w l ls 1 title 'Analytical (linearized)',"
-            "     ''   u 1:3 w l ls 3 title 'RK4 nonlinear (sin theta)'\n",
-            settings.data_file.c_str());
+            "plot '%s' u 1:2 w l ls 1 title '%s',"
+            "     ''   u 1:3 w l ls 3 title '%s'\n",
+            settings.data_file.c_str(), ref_label.c_str(), num_label.c_str());
 
         fprintf(gp,
             "set ylabel '|Error| (rad)'\n"
-            "set title 'Absolute Error vs Analytical Solution' font ',12'\n"
+            "set title 'Absolute Error vs Reference' font ',12'\n"
             "set format y '10^{%%L}'\n"
             "set logscale y\n"
-            "plot '%s' u 1:5 w l ls 4 title '|RK4 linear - analytical|',"
-            "     ''   u 1:6 w l ls 5 title '|RK4 nonlinear - analytical|'\n"
+            "plot '%s' u 1:5 w l ls 4 title '|theta - reference|',"
+            "     ''   u 1:6 w l ls 5 title '|omega - reference|'\n"
             "unset logscale y\n"
             "set format y '%%g'\n",
             settings.data_file.c_str());
@@ -217,17 +239,17 @@ bool render_with_gnuplot(const DampedConfig& config,
             "set ylabel 'theta (rad)'\n"
             "set title 'Angular Displacement' font ',12'\n"
             "set key top right\n"
-            "plot '%s' u 1:2 w l ls 1 title 'Analytical (linearized)',"
-            "     ''   u 1:3 w l ls 3 title 'RK4 nonlinear (sin theta)'\n",
-            settings.data_file.c_str());
+            "plot '%s' u 1:2 w l ls 1 title '%s',"
+            "     ''   u 1:3 w l ls 3 title '%s'\n",
+            settings.data_file.c_str(), ref_label.c_str(), num_label.c_str());
 
         fprintf(gp,
             "set ylabel '|Error| (rad)'\n"
-            "set title 'Absolute Error vs Analytical Solution' font ',12'\n"
+            "set title 'Absolute Error vs Reference' font ',12'\n"
             "set format y '10^{%%L}'\n"
             "set logscale y\n"
-            "plot '%s' u 1:5 w l ls 4 title '|RK4 linear - analytical|',"
-            "     ''   u 1:6 w l ls 5 title '|RK4 nonlinear - analytical|'\n"
+            "plot '%s' u 1:5 w l ls 4 title '|theta - reference|',"
+            "     ''   u 1:6 w l ls 5 title '|omega - reference|'\n"
             "unset logscale y\n"
             "set format y '%%g'\n",
             settings.data_file.c_str());

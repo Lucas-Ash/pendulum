@@ -18,6 +18,13 @@ void print_driven_simulation_summary(const DrivenConfig& config, const Simulatio
                   << ", cubic=" << config.physical.restoring_force.cubic << ")";
     }
     std::cout << "\n";
+    std::cout << "Damping model: "
+              << damping_force::to_string(config.physical.damping_model);
+    if (config.physical.damping_model == damping_force::Model::Polynomial) {
+        std::cout << " (linear=" << config.physical.damping
+                  << ", cubic=" << config.physical.damping_cubic << ")";
+    }
+    std::cout << "\n";
     std::cout << "Error analysis mode: "
               << error_reference::to_string(config.settings.error_mode);
     if (config.settings.error_mode == error_reference::Mode::HdReference) {

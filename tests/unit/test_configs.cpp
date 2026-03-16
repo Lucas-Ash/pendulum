@@ -129,7 +129,9 @@ TEST(DampedConfigLoadsValidYamlAndNestedSections) {
         "physical:\n"
         "  g: 9.81\n"
         "  L: 2.0\n"
-        "  gamma: 0.3\n"
+        "  damping_model: polynomial\n"
+        "  damping_linear: -0.12\n"
+        "  damping_cubic: 0.12\n"
         "  theta0: 0.4\n"
         "  theta_dot0: -0.2\n"
         "  restoring_force_model: polynomial\n"
@@ -151,14 +153,18 @@ TEST(DampedConfigLoadsValidYamlAndNestedSections) {
         "  data_file: \"damped.dat\"\n"
         "  output_png: \"damped.png\"\n"
         "  python_script: \"plot.py\"\n"
+        "  analytical_model: van_der_pol\n"
         "integrator: \"RK3\"\n");
 
     const DampedConfig cfg = load_damped_config_from_yaml(path.string());
     EXPECT_NEAR(cfg.physical.L, 2.0, 1e-12);
-    EXPECT_NEAR(cfg.physical.gamma, 0.3, 1e-12);
+    EXPECT_NEAR(cfg.physical.gamma, -0.06, 1e-12);
+    EXPECT_TRUE(cfg.physical.damping_model == damping_force::Model::Polynomial);
+    EXPECT_NEAR(cfg.physical.damping_cubic, 0.12, 1e-12);
     EXPECT_NEAR(cfg.simulation.t_end, 3.0, 1e-12);
     EXPECT_EQ(cfg.simulation.output_every, 5);
     EXPECT_EQ(cfg.settings.integrator, "rk3");
+    EXPECT_EQ(cfg.settings.analytical_model, "van_der_pol");
     EXPECT_EQ(cfg.settings.data_file, "damped.dat");
     EXPECT_EQ(to_string(cfg.settings.plotting_method), "new");
     EXPECT_TRUE(cfg.settings.plot_phase_map);
@@ -183,10 +189,13 @@ TEST(DampedConfigDefaultsAndValidation) {
     const DampedConfig cfg = load_damped_config_from_yaml(minimal.string());
     EXPECT_NEAR(cfg.physical.g, 9.81, 1e-12);
     EXPECT_EQ(cfg.settings.integrator, "rk4");
+    EXPECT_EQ(cfg.settings.analytical_model, "linear");
     EXPECT_FALSE(cfg.settings.plot_phase_map);
     EXPECT_TRUE(cfg.settings.error_mode == error_reference::Mode::Analytical);
     EXPECT_EQ(cfg.settings.error_reference_factor, 50);
     EXPECT_TRUE(cfg.physical.restoring_force.model == restoring_force::Model::Sine);
+    EXPECT_TRUE(cfg.physical.damping_model == damping_force::Model::Linear);
+    EXPECT_NEAR(cfg.physical.damping_cubic, 0.0, 1e-12);
     EXPECT_EQ(to_string(PlottingMethod::Original), "original");
     EXPECT_EQ(to_string(PlottingMethod::New), "new");
 
@@ -203,7 +212,9 @@ TEST(DrivenConfigLoadsValidYamlAndValidation) {
         "physical:\n"
         "  g: 9.81\n"
         "  L: 1.3\n"
-        "  damping: 0.2\n"
+        "  damping_model: polynomial\n"
+        "  damping_linear: 0.2\n"
+        "  damping_cubic: 0.05\n"
         "  A: 0.4\n"
         "  omega_drive: 1.1\n"
         "  theta0: 0.05\n"
@@ -232,6 +243,9 @@ TEST(DrivenConfigLoadsValidYamlAndValidation) {
     const DrivenConfig cfg = load_driven_config_from_yaml(path.string());
     EXPECT_NEAR(cfg.physical.L, 1.3, 1e-12);
     EXPECT_NEAR(cfg.physical.A, 0.4, 1e-12);
+    EXPECT_NEAR(cfg.physical.damping, 0.2, 1e-12);
+    EXPECT_TRUE(cfg.physical.damping_model == damping_force::Model::Polynomial);
+    EXPECT_NEAR(cfg.physical.damping_cubic, 0.05, 1e-12);
     EXPECT_EQ(cfg.simulation.output_every, 2);
     EXPECT_EQ(cfg.settings.integrator, "rk5");
     EXPECT_EQ(cfg.settings.data_file, "driven.csv");

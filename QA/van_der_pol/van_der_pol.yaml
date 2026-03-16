@@ -1,0 +1,31 @@
+physical:
+  g: 1.0
+  L: 1.0
+  # Standard Van der Pol coefficient: -mu * (1 - theta^2)
+  damping_model: polynomial
+  damping_linear: -0.05
+  damping_cubic: 0.05
+  theta0: 2.0
+  theta_dot0: 0.0
+  restoring_force_model: polynomial
+  restoring_force_linear: 1.0
+  restoring_force_cubic: 0.0
+
+simulation:
+  t_start: 0.0
+  t_end: 12.0
+  dt: 0.01
+  output_every: 1
+
+settings:
+  plotting_method: new
+  show_plot: true
+  save_png: true
+  plot_phase_map: true
+  run_plotter: false
+  data_file: "QA/van_der_pol/outputs/van_der_pol.dat"
+  output_png: "QA/van_der_pol/outputs/van_der_pol.png"
+  python_script: "QA/damped_pendulum/outputs/plot_damped_pendulum.py"
+  integrator: "rk5"
+  analytical_model: "van_der_pol"
+  error_analysis: analytical

@@ -2,7 +2,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-data = np.loadtxt('outputs/damped_pendulum_1.dat', comments='#')
+data = np.loadtxt('outputs/van_der_pol.dat', comments='#')
 t = data[:,0]
 theta_exact = data[:,1]
 theta_nl = data[:,2]
@@ -12,7 +12,7 @@ err_omega = data[:,5]
 energy_nl = data[:,6]
 
 fig, axes = plt.subplots(2, 2, figsize=(13, 10))
-fig.suptitle('Damped Pendulum (theta0=0.3 rad, gamma=0.7)', fontsize=14)
+fig.suptitle('Damped Pendulum (theta0=2 rad, gamma=-0.025)', fontsize=14)
 
 ax_theta = axes[0, 0]
 ax_err = axes[0, 1]
@@ -51,6 +51,6 @@ ax_phase.legend(loc='best')
 ax_phase.set_aspect('equal', adjustable='box')
 
 plt.tight_layout()
-plt.savefig('outputs/damped_pendulum_1.png', dpi=150, bbox_inches='tight')
-print('Plot saved to outputs/damped_pendulum_1.png')
-plt.close(fig)
+plt.savefig('outputs/van_der_pol.png', dpi=150, bbox_inches='tight')
+print('Plot saved to outputs/van_der_pol.png')
+plt.show()

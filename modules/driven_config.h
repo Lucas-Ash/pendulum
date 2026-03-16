@@ -1,5 +1,6 @@
 #pragma once
 
+#include "modules/damping_force.h"
 #include <string>
 #include "modules/error_reference.h"
 #include "modules/restoring_force.h"
@@ -13,6 +14,8 @@ struct DrivenPhysicalConfig {
     double g = 9.81;
     double L = 1.0;
     double damping = 0.5;
+    damping_force::Model damping_model = damping_force::Model::Linear;
+    double damping_cubic = 0.0;
     double A = 0.5;
     double omega_drive = 1.2;
     double theta0 = 0.1;

@@ -354,6 +354,51 @@ TEST(SerialIntegrationDampedPendulumFlowWritesExpectedDat) {
     EXPECT_TRUE(dat.rows.back()[6] < dat.rows.front()[6]);
 }
 
+TEST(SerialIntegrationVanDerPolFlowWritesExpectedDat) {
+    EnvVarGuard guard("QA_TEST");
+    guard.set("1");
+
+    TempDir temp;
+    const auto config_path = temp.write_file(
+        "van_der_pol.yaml",
+        "physical:\n"
+        "  g: 1.0\n"
+        "  L: 1.0\n"
+        "  damping_model: polynomial\n"
+        "  damping_linear: -0.05\n"
+        "  damping_cubic: 0.05\n"
+        "  theta0: 2.0\n"
+        "  theta_dot0: 0.0\n"
+        "  restoring_force_model: polynomial\n"
+        "  restoring_force_linear: 1.0\n"
+        "  restoring_force_cubic: 0.0\n"
+        "simulation:\n"
+        "  t_start: 0.0\n"
+        "  t_end: 6.0\n"
+        "  dt: 0.01\n"
+        "settings:\n"
+        "  data_file: \"serial/van_der_pol.dat\"\n"
+        "  output_png: \"serial/van_der_pol.png\"\n"
+        "  python_script: \"serial/plot.py\"\n"
+        "  analytical_model: van_der_pol\n"
+        "  run_plotter: false\n"
+        "  show_plot: false\n"
+        "  save_png: false\n");
+
+    const DampedConfig cfg = load_damped_config_from_yaml(config_path.string());
+    const auto output_path = temp.child(cfg.settings.data_file);
+    std::filesystem::create_directories(output_path.parent_path());
+
+    DampedPendulumSimulator simulator(cfg);
+    const SimulationResult result = simulator.simulate();
+    write_damped_data_file(output_path.string(), result);
+
+    const DatData dat = read_dat(output_path);
+    EXPECT_FALSE(dat.rows.empty());
+    EXPECT_TRUE(result.theta_stats.max_abs < 1e-2);
+    EXPECT_TRUE(result.omega_stats.max_abs < 2e-2);
+}
+
 TEST(SerialIntegrationDrivenPendulumFlowWritesExpectedCsv) {
     EnvVarGuard guard("QA_TEST");
     guard.set("1");

@@ -45,7 +45,11 @@ SimulationType detect_simulation_type(const std::string& config_path) {
     while (std::getline(file, line)) {
         if (line.find("omega_drive:") != std::string::npos) {
             has_omega_drive = true;
-        } else if (line.find("gamma:") != std::string::npos || line.find("damping:") != std::string::npos) {
+        } else if (line.find("gamma:") != std::string::npos ||
+                   line.find("damping:") != std::string::npos ||
+                   line.find("damping_model:") != std::string::npos ||
+                   line.find("damping_linear:") != std::string::npos ||
+                   line.find("damping_cubic:") != std::string::npos) {
             has_gamma = true;
         }
     }

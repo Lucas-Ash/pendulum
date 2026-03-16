@@ -39,6 +39,26 @@ void set_value(DrivenConfig& config, const std::string& key, const std::string& 
             config.physical.damping = double_value;
             return;
         }
+        if (key == "physical.damping_model" || key == "damping_model") {
+            const std::string model_name = config_utils::to_lower(config_utils::parse_string(value_text));
+            damping_force::Model model = damping_force::Model::Linear;
+            if (!damping_force::parse_model_name(model_name, model)) {
+                throw std::runtime_error(
+                    "damping_model must be 'linear' or 'polynomial'");
+            }
+            config.physical.damping_model = model;
+            return;
+        }
+        if (key == "physical.damping_linear" || key == "damping_linear") {
+            if (!config_utils::parse_double(value_text, double_value)) throw std::runtime_error("numeric");
+            config.physical.damping = double_value;
+            return;
+        }
+        if (key == "physical.damping_cubic" || key == "damping_cubic") {
+            if (!config_utils::parse_double(value_text, double_value)) throw std::runtime_error("numeric");
+            config.physical.damping_cubic = double_value;
+            return;
+        }
         if (key == "physical.A" || key == "A") {
             if (!config_utils::parse_double(value_text, double_value)) throw std::runtime_error("numeric");
             config.physical.A = double_value;
@@ -228,7 +248,10 @@ DrivenConfig load_driven_config_from_yaml(const std::string& path) {
 
     if (config.physical.g <= 0.0) throw std::runtime_error("Invalid config: physical.g must be > 0");
     if (config.physical.L <= 0.0) throw std::runtime_error("Invalid config: physical.L must be > 0");
-    if (config.physical.damping < 0.0) throw std::runtime_error("Invalid config: physical.damping must be >= 0");
+    if (config.physical.damping_model == damping_force::Model::Linear &&
+        config.physical.damping < 0.0) {
+        throw std::runtime_error("Invalid config: physical.damping must be >= 0");
+    }
     if (config.simulation.dt <= 0.0) throw std::runtime_error("Invalid config: simulation.dt must be > 0");
     if (config.simulation.t_end <= config.simulation.t_start) throw std::runtime_error("Invalid config: simulation.t_end must be > simulation.t_start");
     if (config.simulation.output_every <= 0) throw std::runtime_error("Invalid config: simulation.output_every must be > 0");

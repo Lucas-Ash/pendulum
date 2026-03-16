@@ -2,7 +2,8 @@
 """
 plot_poincare.py
 Generates a Poincare section for the driven pendulum simulation by sampling
-the state (theta, omega) exactly once every driving period T = 2*pi / omega_drive.
+the state (theta, v) exactly once every driving period T = 2*pi / omega_drive,
+where v is the angular velocity coordinate of the section.
 
 Usage:
   python scripts/plot_poincare.py [--omega-drive OMEGA] [--t-end T_END] [--base-config YAML]
@@ -111,7 +112,7 @@ def plot_poincare(omega_drive, t_end, base_config_path, project_root):
                 start_period = 0
             
             poincare_theta = []
-            poincare_omega = []
+            poincare_v = []
             
             for p in range(start_period, max_period + 1):
                 target_t = p * T
@@ -139,18 +140,18 @@ def plot_poincare(omega_drive, t_end, base_config_path, project_root):
                     
                     factor = (target_t - t0) / (t1 - t0)
                     interp_th = th0 + factor * (th1 - th0)
-                    interp_om = om0 + factor * (om1 - om0)
+                    interp_v = om0 + factor * (om1 - om0)
                     
                     poincare_theta.append(normalize_angle(interp_th))
-                    poincare_omega.append(interp_om)
+                    poincare_v.append(interp_v)
 
             print(f"Extracted {len(poincare_theta)} points for Poincare section.")
             
             # Plot
             plt.figure(figsize=(8, 8))
-            plt.scatter(poincare_theta, poincare_omega, s=2, c='k', alpha=0.5)
+            plt.scatter(poincare_theta, poincare_v, s=2, c='k', alpha=0.5)
             plt.xlabel('$\\theta$ (mod $2\\pi$) (rad)', fontsize=14)
-            plt.ylabel('$\\omega$ (rad/s)', fontsize=14)
+            plt.ylabel('$v = \\omega$ (rad/s)', fontsize=14)
             plt.title(f'Poincare Section ($\\omega_{{drive}} = {omega_drive:.3f}$, $A = {config["physical"].get("A", "unknown")}$)', fontsize=16)
             plt.grid(True, alpha=0.3)
             plt.xlim([-np.pi, np.pi])
