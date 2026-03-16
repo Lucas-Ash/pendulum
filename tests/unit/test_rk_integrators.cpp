@@ -58,6 +58,35 @@ double observed_order_from_halving(const std::vector<double>& errors) {
     return local_orders.empty() ? 0.0 : sum / static_cast<double>(local_orders.size());
 }
 
+integrator::State integrate_position_only(
+    const std::string& method,
+    double dt,
+    double t_end,
+    integrator::State initial,
+    const std::function<double(double, double)>& acceleration) {
+    const int steps = static_cast<int>(std::round(t_end / dt));
+    const auto states = integrator::integrate_position_only_trajectory(
+        method, 0.0, dt, steps, initial, acceleration);
+    return states.back();
+}
+
+integrator::State integrate_den(
+    double dt,
+    double t_end,
+    double gamma,
+    double omega0,
+    integrator::State initial,
+    const std::function<double(double, const integrator::State&)>& residual) {
+    const int steps = static_cast<int>(std::round(t_end / dt));
+    double t = 0.0;
+    integrator::State state = initial;
+    for (int i = 0; i < steps; ++i) {
+        state = integrator::den3_step(t, dt, state, gamma, omega0, residual);
+        t += dt;
+    }
+    return state;
+}
+
 }  // namespace
 
 TEST(RkIntegratorsStateArithmetic) {
@@ -100,6 +129,70 @@ TEST(RkIntegratorsConstantDerivativeIsExact) {
     EXPECT_NEAR(s23.omega, omega_expected, 1e-12);
     EXPECT_NEAR(s45.theta, theta_expected, 1e-12);
     EXPECT_NEAR(s45.omega, omega_expected, 1e-12);
+}
+
+TEST(PositionOnlyIntegratorsConstantAccelerationIsExact) {
+    auto acceleration = [](double, double) { return -3.0; };
+
+    const integrator::State initial{1.0, 5.0};
+    const double dt = 0.1;
+    const double t_end = 0.5;
+
+    const auto verlet = integrate_position_only("velocity_verlet", dt, t_end, initial, acceleration);
+    const auto rkn = integrate_position_only("runge_kutta_nystrom", dt, t_end, initial, acceleration);
+    const auto numerov = integrate_position_only("numerov", dt, t_end, initial, acceleration);
+
+    const double theta_expected = initial.theta + initial.omega * t_end - 1.5 * t_end * t_end;
+    const double omega_expected = initial.omega - 3.0 * t_end;
+
+    EXPECT_NEAR(verlet.theta, theta_expected, 1e-12);
+    EXPECT_NEAR(verlet.omega, omega_expected, 1e-12);
+    EXPECT_NEAR(rkn.theta, theta_expected, 1e-12);
+    EXPECT_NEAR(rkn.omega, omega_expected, 1e-12);
+    EXPECT_NEAR(numerov.theta, theta_expected, 1e-12);
+    EXPECT_NEAR(numerov.omega, omega_expected, 1e-12);
+}
+
+TEST(DenIntegratorExactForHomogeneousDampedOscillator) {
+    const double gamma = 0.2;
+    const double omega0 = 1.5;
+    const double dt = 0.1;
+    const double t_end = 2.0;
+    const integrator::State initial{0.7, -0.15};
+    auto residual = [](double, const integrator::State&) { return 0.0; };
+
+    const integrator::State out = integrate_den(dt, t_end, gamma, omega0, initial, residual);
+    const integrator::Propagator phi = integrator::den_propagator(t_end, gamma, omega0);
+    const double theta_exact = phi.phi11 * initial.theta + phi.phi12 * initial.omega;
+    const double omega_exact = phi.phi21 * initial.theta + phi.phi22 * initial.omega;
+
+    EXPECT_NEAR(out.theta, theta_exact, 1e-12);
+    EXPECT_NEAR(out.omega, omega_exact, 1e-12);
+}
+
+TEST(DenIntegratorObservedOrderMatchesFourthOrder) {
+    const double gamma = 0.15;
+    const double omega0 = 1.2;
+    const double t_end = 1.0;
+    const integrator::State initial{0.4, -0.3};
+    auto residual = [](double t, const integrator::State&) {
+        return std::sin(2.0 * t);
+    };
+
+    auto error_at = [&](double dt) {
+        const integrator::State out = integrate_den(dt, t_end, gamma, omega0, initial, residual);
+        const integrator::State ref = integrate_den(dt / 32.0, t_end, gamma, omega0, initial, residual);
+        return std::max(std::fabs(out.theta - ref.theta), std::fabs(out.omega - ref.omega));
+    };
+
+    const std::vector<double> dts = {0.2, 0.1, 0.05, 0.025};
+    std::vector<double> errors;
+    for (double dt : dts) {
+        errors.push_back(error_at(dt));
+    }
+
+    const double order = observed_order_from_halving(errors);
+    EXPECT_TRUE(order > 3.5 && order < 4.5);
 }
 
 TEST(RkIntegratorsConvergenceOnExponentialDecay) {
@@ -232,3 +325,44 @@ TEST(RkIntegratorsSymplecticHarmonicOscillator) {
     EXPECT_TRUE(e_ruth_dt / e_ruth_half > 14.0);
 }
 
+TEST(PositionOnlyIntegratorsObservedOrderMatchesMethodOrder) {
+    auto acceleration = [](double, double theta) {
+        return -theta;
+    };
+
+    const integrator::State initial{1.0, -0.25};
+    const double t_end = 1.0;
+    const std::vector<double> dts = {0.2, 0.1, 0.05, 0.025};
+
+    auto error_at = [&](const std::string& method, double dt) {
+        const integrator::State out =
+            integrate_position_only(method, dt, t_end, initial, acceleration);
+        const double exact_theta =
+            initial.theta * std::cos(t_end) + initial.omega * std::sin(t_end);
+        const double exact_omega =
+            -initial.theta * std::sin(t_end) + initial.omega * std::cos(t_end);
+        return std::max(std::fabs(out.theta - exact_theta),
+                        std::fabs(out.omega - exact_omega));
+    };
+
+    std::vector<double> verlet_errors;
+    std::vector<double> rkn_errors;
+    std::vector<double> numerov_errors;
+    for (double dt : dts) {
+        verlet_errors.push_back(error_at("velocity_verlet", dt));
+        rkn_errors.push_back(error_at("runge_kutta_nystrom", dt));
+        numerov_errors.push_back(error_at("numerov", dt));
+    }
+
+    const double verlet_order = observed_order_from_halving(verlet_errors);
+    const double rkn_order = observed_order_from_halving(rkn_errors);
+    const double numerov_order = observed_order_from_halving(numerov_errors);
+
+    EXPECT_TRUE(verlet_order > 1.8 && verlet_order < 2.2);
+    EXPECT_TRUE(rkn_order > 3.6 && rkn_order < 4.4);
+    EXPECT_TRUE(numerov_order > 3.4 && numerov_order < 4.4);
+
+    EXPECT_TRUE(verlet_errors.back() < verlet_errors.front());
+    EXPECT_TRUE(rkn_errors.back() < rkn_errors.front());
+    EXPECT_TRUE(numerov_errors.back() < numerov_errors.front());
+}

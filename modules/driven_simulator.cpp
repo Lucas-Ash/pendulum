@@ -2,6 +2,7 @@
 #include <cmath>
 #include <stdexcept>
 #include <algorithm>
+#include <functional>
 
 #include "modules/rk_integrators.h"
 #include "modules/error_analysis.h"
@@ -13,7 +14,10 @@ namespace {
                                     double t,
                                     double dt,
                                     const integrator::State& state,
-                                    DerivFunc derivs) {
+                                    DerivFunc derivs,
+                                    double den_gamma,
+                                    double den_omega0,
+                                    const std::function<double(double, const integrator::State&)>& den_residual) {
         if (method == "rk3") return integrator::rk3_step(t, dt, state, derivs);
         if (method == "rk5") return integrator::rk5_step(t, dt, state, derivs);
         if (method == "semi_implicit_euler") {
@@ -23,12 +27,26 @@ namespace {
         if (method == "ruth4") return integrator::ruth4_step(t, dt, state, derivs);
         if (method == "rk23") return integrator::rk23_step(t, dt, state, derivs);
         if (method == "rkf45") return integrator::rkf45_step(t, dt, state, derivs);
+        if (integrator::is_den_method(method)) {
+            return integrator::den3_step(t, dt, state, den_gamma, den_omega0, den_residual);
+        }
         return integrator::rk4_step(t, dt, state, derivs);
     }
 
     double damping_term(double theta, double omega, const DrivenPhysicalConfig& p) {
         return damping_force::term(
             theta, omega, p.damping_model, p.damping, p.damping_cubic);
+    }
+
+    void validate_position_only_integrator(const std::string& method,
+                                           const DrivenPhysicalConfig& p) {
+        if (!integrator::is_position_only_integrator(method)) {
+            return;
+        }
+        if (std::abs(p.damping) > 1e-12 || std::abs(p.damping_cubic) > 1e-12) {
+            throw std::runtime_error(
+                method + " requires theta'' = a(t, theta); it is not valid with velocity-dependent damping.");
+        }
     }
 
     void analytical_solution(double t, const DrivenPhysicalConfig& p,
@@ -83,6 +101,7 @@ SimulationResult DrivenPendulumSimulator::simulate() const {
     const auto& p = config_.physical;
     const auto& s = config_.simulation;
     const auto& settings = config_.settings;
+    validate_position_only_integrator(settings.integrator, p);
 
     SimulationResult result;
     const double omega0_sq = p.g / p.L;
@@ -126,6 +145,64 @@ SimulationResult DrivenPendulumSimulator::simulate() const {
                                - omega0_sq * restoring_force::term(state_val.theta, p.restoring_force)
                                + p.A * std::cos(p.omega_drive * t_val)};
     };
+    const double den_gamma = 0.5 * p.damping;
+    const double den_omega0_sq = std::max(
+        0.0, omega0_sq * restoring_force::linearized_slope(p.restoring_force));
+    const double den_omega0 = std::sqrt(den_omega0_sq);
+    const std::function<double(double, const integrator::State&)> den_residual =
+        [&p, omega0_sq, den_omega0_sq](double t_val, const integrator::State& state_val) {
+            return -damping_term(state_val.theta, state_val.omega, p)
+                   - omega0_sq * restoring_force::term(state_val.theta, p.restoring_force)
+                   + p.A * std::cos(p.omega_drive * t_val)
+                   + p.damping * state_val.omega
+                   + den_omega0_sq * state_val.theta;
+        };
+    auto acceleration = [&p, omega0_sq](double t_val, double theta) {
+        return -omega0_sq * restoring_force::term(theta, p.restoring_force) +
+               p.A * std::cos(p.omega_drive * t_val);
+    };
+
+    if (integrator::is_position_only_integrator(settings.integrator)) {
+        const std::vector<integrator::State> trajectory =
+            integrator::integrate_position_only_trajectory(
+                settings.integrator, s.t_start, s.dt, nsteps, state, acceleration);
+        std::vector<integrator::State> trajectory_ref;
+        if (settings.error_mode == error_reference::Mode::HdReference) {
+            trajectory_ref = integrator::integrate_position_only_trajectory(
+                settings.integrator, s.t_start, dt_ref,
+                nsteps * settings.error_reference_factor, state_ref, acceleration);
+        }
+
+        for (int n = 0; n <= nsteps; ++n) {
+            const double t_sample = s.t_start + n * s.dt;
+            const auto& sample = trajectory[static_cast<size_t>(n)];
+
+            double theta_exact = 0.0;
+            double omega_exact = 0.0;
+            if (settings.error_mode == error_reference::Mode::None) {
+                theta_exact = sample.theta;
+                omega_exact = sample.omega;
+            } else if (settings.error_mode == error_reference::Mode::HdReference) {
+                const auto& ref_sample =
+                    trajectory_ref[static_cast<size_t>(n * settings.error_reference_factor)];
+                theta_exact = ref_sample.theta;
+                omega_exact = ref_sample.omega;
+            } else {
+                analytical_solution(t_sample, p, omega_lin_sq, theta_exact, omega_exact);
+            }
+
+            result.t.push_back(t_sample);
+            result.theta.push_back(sample.theta);
+            result.omega.push_back(sample.omega);
+            result.theta_analytical.push_back(theta_exact);
+            result.omega_analytical.push_back(omega_exact);
+            result.energy.push_back(
+                total_energy(sample.theta, sample.omega, omega0_sq, p.restoring_force));
+        }
+
+        compute_error_statistics(result);
+        return result;
+    }
 
     for (int n = 0; n <= nsteps; ++n) {
         double theta_exact = 0.0;
@@ -149,11 +226,13 @@ SimulationResult DrivenPendulumSimulator::simulate() const {
             total_energy(state.theta, state.omega, omega0_sq, p.restoring_force));
 
         if (n < nsteps) {
-            state = advance_state(settings.integrator, t, s.dt, state, derivs);
+            state = advance_state(settings.integrator, t, s.dt, state, derivs,
+                                  den_gamma, den_omega0, den_residual);
             if (settings.error_mode == error_reference::Mode::HdReference) {
                 for (int k = 0; k < settings.error_reference_factor; ++k) {
                     state_ref = advance_state(settings.integrator, t_ref, dt_ref,
-                                              state_ref, derivs);
+                                              state_ref, derivs,
+                                              den_gamma, den_omega0, den_residual);
                     t_ref += dt_ref;
                 }
             }

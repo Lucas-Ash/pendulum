@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <functional>
 #include <limits>
 #include <stdexcept>
 
@@ -14,7 +15,10 @@ integrator::State advance_state(const std::string& method,
                                 double t,
                                 double dt,
                                 const integrator::State& state,
-                                DerivFunc derivs) {
+                                DerivFunc derivs,
+                                double den_gamma,
+                                double den_omega0,
+                                const std::function<double(double, const integrator::State&)>& den_residual) {
     if (method == "rk3") return integrator::rk3_step(t, dt, state, derivs);
     if (method == "rk5") return integrator::rk5_step(t, dt, state, derivs);
     if (method == "semi_implicit_euler") {
@@ -24,6 +28,9 @@ integrator::State advance_state(const std::string& method,
     if (method == "ruth4") return integrator::ruth4_step(t, dt, state, derivs);
     if (method == "rk23") return integrator::rk23_step(t, dt, state, derivs);
     if (method == "rkf45") return integrator::rkf45_step(t, dt, state, derivs);
+    if (integrator::is_den_method(method)) {
+        return integrator::den3_step(t, dt, state, den_gamma, den_omega0, den_residual);
+    }
     return integrator::rk4_step(t, dt, state, derivs);
 }
 
@@ -38,6 +45,18 @@ double damping_term(double theta, double omega, const DampedPhysicalConfig& phys
         physical.damping_model,
         linear_damping_coefficient(physical),
         physical.damping_cubic);
+}
+
+void validate_position_only_integrator(const std::string& method,
+                                       const DampedPhysicalConfig& physical) {
+    if (!integrator::is_position_only_integrator(method)) {
+        return;
+    }
+    if (std::abs(linear_damping_coefficient(physical)) > 1e-12 ||
+        std::abs(physical.damping_cubic) > 1e-12) {
+        throw std::runtime_error(
+            method + " requires theta'' = a(t, theta); it is not valid with velocity-dependent damping.");
+    }
 }
 
 void van_der_pol_first_order_state(double t,
@@ -119,6 +138,7 @@ SimulationResult DampedPendulumSimulator::simulate() const {
     const auto& p = config_.physical;
     const auto& s = config_.simulation;
     const auto& settings = config_.settings;
+    validate_position_only_integrator(settings.integrator, p);
 
     SimulationResult result;
     const double omega0_sq = p.g / p.L;
@@ -201,9 +221,75 @@ SimulationResult DampedPendulumSimulator::simulate() const {
         return {state.omega, -damping_term(state.theta, state.omega, physical)
                               - omega0_sq * restoring_force::term(state.theta, physical.restoring_force)};
     };
+    const double den_omega0_sq = std::max(
+        0.0, omega0_sq * restoring_force::linearized_slope(p.restoring_force));
+    const double den_omega0 = std::sqrt(den_omega0_sq);
+    const std::function<double(double, const integrator::State&)> den_residual =
+        [physical = p, omega0_sq, den_omega0_sq](double t_val, const integrator::State& state) {
+            return -damping_term(state.theta, state.omega, physical)
+                   - omega0_sq * restoring_force::term(state.theta, physical.restoring_force)
+                   + linear_damping_coefficient(physical) * state.omega
+                   + den_omega0_sq * state.theta;
+        };
+    auto acceleration = [physical = p, omega0_sq](double t_val, double theta) {
+        return -omega0_sq * restoring_force::term(theta, physical.restoring_force);
+    };
 
     integrator::State state = {p.theta0, p.theta_dot0};
     integrator::State state_ref = state;
+
+    if (integrator::is_position_only_integrator(settings.integrator)) {
+        const std::vector<integrator::State> trajectory =
+            integrator::integrate_position_only_trajectory(
+                settings.integrator, s.t_start, s.dt, nsteps, state, acceleration);
+        std::vector<integrator::State> trajectory_ref;
+        if (settings.error_mode == error_reference::Mode::HdReference) {
+            trajectory_ref = integrator::integrate_position_only_trajectory(
+                settings.integrator, s.t_start, dt_ref,
+                nsteps * settings.error_reference_factor, state_ref, acceleration);
+        }
+
+        for (int n = 0; n <= nsteps; ++n) {
+            const double t = s.t_start + n * s.dt;
+            const auto& sample = trajectory[static_cast<size_t>(n)];
+
+            double theta_exact = 0.0;
+            double omega_exact = 0.0;
+            if (settings.error_mode == error_reference::Mode::None) {
+                theta_exact = sample.theta;
+                omega_exact = sample.omega;
+            } else if (settings.error_mode == error_reference::Mode::HdReference) {
+                const auto& ref_sample =
+                    trajectory_ref[static_cast<size_t>(n * settings.error_reference_factor)];
+                theta_exact = ref_sample.theta;
+                omega_exact = ref_sample.omega;
+            } else {
+                const bool wants_van_der_pol =
+                    settings.analytical_model == "van_der_pol" ||
+                    settings.analytical_model == "van_der_pol_first_order";
+                if (wants_van_der_pol) {
+                    van_der_pol_first_order_state(
+                        t, omega_linear, van_der_pol_mu, van_der_pol_phase,
+                        theta_exact, omega_exact);
+                } else {
+                    linear_analytical_solution(
+                        t, omega_d, p.gamma, p.theta0, p.theta_dot0,
+                        theta_exact, omega_exact);
+                }
+            }
+
+            result.t.push_back(t);
+            result.theta.push_back(sample.theta);
+            result.omega.push_back(sample.omega);
+            result.theta_analytical.push_back(theta_exact);
+            result.omega_analytical.push_back(omega_exact);
+            result.energy.push_back(
+                total_energy(sample.theta, sample.omega, omega0_sq, p.restoring_force));
+        }
+
+        compute_error_statistics(result);
+        return result;
+    }
 
     for (int n = 0; n <= nsteps; ++n) {
         const double t = s.t_start + n * s.dt;
@@ -239,11 +325,13 @@ SimulationResult DampedPendulumSimulator::simulate() const {
             total_energy(state.theta, state.omega, omega0_sq, p.restoring_force));
 
         if (n < nsteps) {
-            state = advance_state(settings.integrator, t, s.dt, state, derivs);
+            state = advance_state(settings.integrator, t, s.dt, state, derivs,
+                                  p.gamma, den_omega0, den_residual);
             if (settings.error_mode == error_reference::Mode::HdReference) {
                 for (int k = 0; k < settings.error_reference_factor; ++k) {
                     state_ref = advance_state(settings.integrator, t_ref, dt_ref,
-                                              state_ref, derivs);
+                                              state_ref, derivs,
+                                              p.gamma, den_omega0, den_residual);
                     t_ref += dt_ref;
                 }
             }

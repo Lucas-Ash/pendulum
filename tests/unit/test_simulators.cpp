@@ -84,11 +84,23 @@ TEST(PendulumSimulatorIntegratorChoicesAllSane) {
     const SimulationResult rk3 = sim.simulate(0.4, -0.1, "rk3", "jacobi");
     const SimulationResult rk4 = sim.simulate(0.4, -0.1, "rk4", "jacobi");
     const SimulationResult rk5 = sim.simulate(0.4, -0.1, "rk5", "jacobi");
+    const SimulationResult den = sim.simulate(0.4, -0.1, "den3", "jacobi");
+    const SimulationResult verlet = sim.simulate(0.4, -0.1, "velocity_verlet", "jacobi");
+    const SimulationResult rkn = sim.simulate(0.4, -0.1, "runge_kutta_nystrom", "jacobi");
+    const SimulationResult numerov = sim.simulate(0.4, -0.1, "numerov", "jacobi");
 
     EXPECT_EQ(rk3.t.size(), rk4.t.size());
     EXPECT_EQ(rk4.t.size(), rk5.t.size());
+    EXPECT_EQ(rk5.t.size(), den.t.size());
+    EXPECT_EQ(den.t.size(), verlet.t.size());
+    EXPECT_EQ(verlet.t.size(), rkn.t.size());
+    EXPECT_EQ(rkn.t.size(), numerov.t.size());
     EXPECT_TRUE(std::fabs(rk4.theta.back() - rk5.theta.back()) < 5e-3);
     EXPECT_TRUE(std::fabs(rk3.theta.back() - rk5.theta.back()) < 2e-2);
+    EXPECT_TRUE(std::fabs(den.theta.back() - rk5.theta.back()) < 5e-3);
+    EXPECT_TRUE(std::fabs(verlet.theta.back() - rk5.theta.back()) < 3e-2);
+    EXPECT_TRUE(std::fabs(rkn.theta.back() - rk5.theta.back()) < 5e-3);
+    EXPECT_TRUE(std::fabs(numerov.theta.back() - rk5.theta.back()) < 5e-3);
 }
 
 TEST(PendulumSimulatorDuffingJacobiReferenceTracksNumericalSolution) {
@@ -153,6 +165,28 @@ TEST(DampedSimulatorShowsDecayAndEnergyDissipation) {
 
     EXPECT_TRUE(out.energy.back() < out.energy.front());
     EXPECT_TRUE(out.theta_stats.avg_abs < 0.1);
+}
+
+TEST(DampedSimulatorDenIntegratorRunsAndTracksRk5) {
+    DampedConfig cfg;
+    cfg.physical.gamma = 0.2;
+    cfg.physical.theta0 = 0.45;
+    cfg.physical.theta_dot0 = -0.1;
+    cfg.simulation.t_start = 0.0;
+    cfg.simulation.t_end = 6.0;
+    cfg.simulation.dt = 0.002;
+
+    DampedConfig den_cfg = cfg;
+    den_cfg.settings.integrator = "den3";
+    DampedConfig rk_cfg = cfg;
+    rk_cfg.settings.integrator = "rk5";
+
+    const SimulationResult den = DampedPendulumSimulator(den_cfg).simulate();
+    const SimulationResult rk5 = DampedPendulumSimulator(rk_cfg).simulate();
+
+    EXPECT_EQ(den.t.size(), rk5.t.size());
+    EXPECT_TRUE(std::fabs(den.theta.back() - rk5.theta.back()) < 5e-3);
+    EXPECT_TRUE(std::fabs(den.omega.back() - rk5.omega.back()) < 5e-3);
 }
 
 TEST(DampedSimulatorRejectsNonUnderdampedParameters) {
@@ -226,6 +260,18 @@ TEST(DampedSimulatorHdReferenceErrorAnalysisRuns) {
     EXPECT_TRUE(out.theta_stats.max_abs < 5e-2);
 }
 
+TEST(DampedSimulatorRejectsPositionOnlyIntegratorsWithDamping) {
+    DampedConfig cfg;
+    cfg.physical.gamma = 0.1;
+    cfg.physical.theta0 = 0.4;
+    cfg.simulation.t_end = 1.0;
+    cfg.simulation.dt = 0.01;
+    cfg.settings.integrator = "numerov";
+
+    DampedPendulumSimulator sim(cfg);
+    EXPECT_THROW(sim.simulate());
+}
+
 TEST(DampedSimulatorStrongVanDerPolHdReferenceRuns) {
     DampedConfig cfg;
     cfg.physical.g = 1.0;
@@ -250,6 +296,22 @@ TEST(DampedSimulatorStrongVanDerPolHdReferenceRuns) {
     EXPECT_FALSE(out.t.empty());
     EXPECT_TRUE(out.theta_stats.max_abs < 2e-1);
     EXPECT_TRUE(out.omega_stats.max_abs < 8e-1);
+}
+
+TEST(DrivenSimulatorRejectsPositionOnlyIntegratorsWithDamping) {
+    DrivenConfig cfg;
+    cfg.physical.damping = 0.2;
+    cfg.physical.theta0 = 0.1;
+    cfg.physical.omega0 = 0.0;
+    cfg.physical.A = 0.05;
+    cfg.physical.omega_drive = 1.5;
+    cfg.simulation.t_end = 1.0;
+    cfg.simulation.dt = 0.01;
+    cfg.settings.integrator = "velocity_verlet";
+    cfg.settings.error_mode = error_reference::Mode::None;
+
+    DrivenPendulumSimulator sim(cfg);
+    EXPECT_THROW(sim.simulate());
 }
 
 TEST(DrivenSimulatorSteadyStateAndPhaseLocking) {
@@ -279,6 +341,34 @@ TEST(DrivenSimulatorSteadyStateAndPhaseLocking) {
 
     const double corr = correlation_with_driver(out.t, out.theta, cfg.physical.omega_drive, half);
     EXPECT_TRUE(corr > 0.2);
+}
+
+TEST(DrivenSimulatorDenIntegratorRunsAndTracksRk5) {
+    DrivenConfig cfg;
+    cfg.physical.g = 9.81;
+    cfg.physical.L = 1.0;
+    cfg.physical.damping = 0.4;
+    cfg.physical.A = 0.5;
+    cfg.physical.omega_drive = 1.2;
+    cfg.physical.theta0 = 0.1;
+    cfg.physical.omega0 = -0.05;
+    cfg.simulation.t_start = 0.0;
+    cfg.simulation.t_end = 8.0;
+    cfg.simulation.dt = 0.002;
+
+    DrivenConfig den_cfg = cfg;
+    den_cfg.settings.integrator = "den3";
+    den_cfg.settings.error_mode = error_reference::Mode::None;
+    DrivenConfig rk_cfg = cfg;
+    rk_cfg.settings.integrator = "rk5";
+    rk_cfg.settings.error_mode = error_reference::Mode::None;
+
+    const SimulationResult den = DrivenPendulumSimulator(den_cfg).simulate();
+    const SimulationResult rk5 = DrivenPendulumSimulator(rk_cfg).simulate();
+
+    EXPECT_EQ(den.t.size(), rk5.t.size());
+    EXPECT_TRUE(std::fabs(den.theta.back() - rk5.theta.back()) < 8e-3);
+    EXPECT_TRUE(std::fabs(den.omega.back() - rk5.omega.back()) < 8e-3);
 }
 
 TEST(DrivenSimulatorParameterSweepRunsAndStaysFinite) {

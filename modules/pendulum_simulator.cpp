@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <functional>
 #include <stdexcept>
 
 namespace {
@@ -14,7 +15,10 @@ integrator::State advance_state(const std::string& method,
                                 double t,
                                 double dt,
                                 const integrator::State& state,
-                                DerivFunc derivs) {
+                                DerivFunc derivs,
+                                double den_gamma,
+                                double den_omega0,
+                                const std::function<double(double, const integrator::State&)>& den_residual) {
     if (method == "rk3") {
         return integrator::rk3_step(t, dt, state, derivs);
     }
@@ -35,6 +39,9 @@ integrator::State advance_state(const std::string& method,
     }
     if (method == "rkf45") {
         return integrator::rkf45_step(t, dt, state, derivs);
+    }
+    if (integrator::is_den_method(method)) {
+        return integrator::den3_step(t, dt, state, den_gamma, den_omega0, den_residual);
     }
     return integrator::rk4_step(t, dt, state, derivs);
 }
@@ -263,6 +270,73 @@ SimulationResult PendulumSimulator::simulate(
         return {s.omega,
                 -(g_ / L_) * restoring_force::term(s.theta, restoring_force_)};
     };
+    const double den_omega0_sq = std::max(
+        0.0, (g_ / L_) * restoring_force::linearized_slope(restoring_force_));
+    const double den_omega0 = std::sqrt(den_omega0_sq);
+    const std::function<double(double, const integrator::State&)> den_residual =
+        [this, den_omega0_sq](double, const integrator::State& s) {
+            return -(g_ / L_) * restoring_force::term(s.theta, restoring_force_) +
+                   den_omega0_sq * s.theta;
+        };
+    auto acceleration = [this](double, double theta) {
+        return -(g_ / L_) * restoring_force::term(theta, restoring_force_);
+    };
+
+    if (integrator::is_position_only_integrator(integrator)) {
+        const std::vector<integrator::State> trajectory =
+            integrator::integrate_position_only_trajectory(
+                integrator, 0.0, dt_, nsteps, state, acceleration);
+        std::vector<integrator::State> trajectory_ref;
+        if (error_mode == error_reference::Mode::HdReference) {
+            trajectory_ref = integrator::integrate_position_only_trajectory(
+                integrator, 0.0, dt_ref, nsteps * error_reference_factor, state_ref,
+                acceleration);
+        }
+
+        for (int n = 0; n <= nsteps; ++n) {
+            const double t = n * dt_;
+            const auto& sample = trajectory[static_cast<size_t>(n)];
+
+            result.t.push_back(t);
+            result.theta.push_back(sample.theta);
+            result.omega.push_back(sample.omega);
+
+            double theta_ref_val = 0.0;
+            double omega_ref_val = 0.0;
+            if (error_mode == error_reference::Mode::None) {
+                theta_ref_val = sample.theta;
+                omega_ref_val = sample.omega;
+            } else if (error_mode == error_reference::Mode::HdReference) {
+                const auto& ref_sample =
+                    trajectory_ref[static_cast<size_t>(n * error_reference_factor)];
+                theta_ref_val = ref_sample.theta;
+                omega_ref_val = ref_sample.omega;
+            } else {
+                const bool wants_duffing_analytical =
+                    analytical_model == "duffing_jacobi" ||
+                    analytical_model == "duffing";
+                if (wants_duffing_analytical ||
+                    (analytical_model == "jacobi" &&
+                     restoring_force_.model == restoring_force::Model::Polynomial)) {
+                    exact_duffing_state(t, theta0, omega0, theta_ref_val, omega_ref_val);
+                } else if (analytical_model == "jacobi") {
+                    exact_nonlinear_state(t, theta0, omega0, theta_ref_val, omega_ref_val);
+                } else {
+                    exact_linear_state(t, theta0, omega0, theta_ref_val, omega_ref_val);
+                }
+            }
+
+            result.theta_analytical.push_back(theta_ref_val);
+            result.omega_analytical.push_back(omega_ref_val);
+            result.energy.push_back(
+                0.5 * sample.omega * sample.omega +
+                (g_ / L_) * restoring_force::potential(sample.theta, restoring_force_));
+        }
+
+        compute_error_statistics(result);
+        result.rk4_steps = nsteps;
+        return result;
+    }
 
     for (int n = 0; n <= nsteps; ++n) {
         const double t = n * dt_;
@@ -304,11 +378,13 @@ SimulationResult PendulumSimulator::simulate(
         result.energy.push_back(energy);
 
         if (n < nsteps) {
-            state = advance_state(integrator, t, dt_, state, derivs);
+            state = advance_state(integrator, t, dt_, state, derivs,
+                                  0.0, den_omega0, den_residual);
             if (error_mode == error_reference::Mode::HdReference) {
                 for (int k = 0; k < error_reference_factor; ++k) {
                     state_ref = advance_state(
-                        integrator, t_ref, dt_ref, state_ref, derivs);
+                        integrator, t_ref, dt_ref, state_ref, derivs,
+                        0.0, den_omega0, den_residual);
                     t_ref += dt_ref;
                 }
             }

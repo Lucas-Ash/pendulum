@@ -127,7 +127,7 @@ def main():
     summary_path = Path(args.summary)
     summary_path.parent.mkdir(parents=True, exist_ok=True)
 
-    plt.figure(figsize=(10, 6))
+    fig, ax = plt.subplots(figsize=(14, 8.5))
     summary_rows = []
     for method in sorted(series):
         points = sorted(series[method], key=lambda item: item[0], reverse=True)
@@ -144,7 +144,7 @@ def main():
         dts_sat = [p[0] for p in sat_points]
         errs_sat = [p[1] for p in sat_points]
 
-        line = plt.loglog(
+        line = ax.loglog(
             dts_all,
             errs_all,
             marker="o",
@@ -155,7 +155,7 @@ def main():
         )[0]
         color = line.get_color()
 
-        plt.loglog(
+        ax.loglog(
             dts_fit,
             errs_fit,
             marker="o",
@@ -164,7 +164,7 @@ def main():
             label=f"{method.upper()} filtered (grad={slope:.3f})",
         )
         if dts_sat:
-            plt.loglog(
+            ax.loglog(
                 dts_sat,
                 errs_sat,
                 marker="x",
@@ -192,14 +192,14 @@ def main():
             f"saturated_points={len(sat_points)}"
         )
 
-    plt.gca().invert_xaxis()
-    plt.xlabel("Time Step (dt)")
-    plt.ylabel("RMS Trajectory Error")
-    plt.title("Simple Pendulum Convergence (Saturation-Filtered)")
-    plt.grid(True, which="both", linestyle="--", alpha=0.4)
-    plt.legend()
-    plt.tight_layout()
-    plt.savefig(output_path, dpi=160)
+    ax.invert_xaxis()
+    ax.set_xlabel("Time Step (dt)")
+    ax.set_ylabel("RMS Trajectory Error")
+    ax.set_title("Simple Pendulum Convergence (Saturation-Filtered)")
+    ax.grid(True, which="both", linestyle="--", alpha=0.4)
+    ax.legend(loc="center left", bbox_to_anchor=(1.02, 0.5), borderaxespad=0.0)
+    fig.tight_layout(rect=(0.0, 0.0, 0.78, 1.0))
+    fig.savefig(output_path, dpi=160, bbox_inches="tight")
     print(f"Saved convergence plot to {output_path}")
 
     write_summary(summary_path, summary_rows)

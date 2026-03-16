@@ -30,6 +30,7 @@ struct Trajectory {
     double dt = 0.0;
     std::vector<double> theta;
     std::vector<double> omega;
+    std::vector<double> energy;
 };
 
 bool env_truthy(const char* name) {
@@ -90,10 +91,11 @@ Trajectory run_simple_serial_case(
     out.dt = cfg.dt;
     out.theta = result.theta;
     out.omega = result.omega;
+    out.energy = result.energy;
     return out;
 }
 
-double trajectory_rms_error(const Trajectory& candidate, const Trajectory& reference) {
+size_t checked_ratio(const Trajectory& candidate, const Trajectory& reference) {
     const double ratio_real = candidate.dt / reference.dt;
     const size_t ratio = static_cast<size_t>(std::llround(ratio_real));
     EXPECT_TRUE(ratio > 0u);
@@ -102,6 +104,27 @@ double trajectory_rms_error(const Trajectory& candidate, const Trajectory& refer
     EXPECT_TRUE(reference.theta.size() >= (candidate.theta.size() - 1u) * ratio + 1u);
     EXPECT_EQ(candidate.theta.size(), candidate.omega.size());
     EXPECT_EQ(reference.theta.size(), reference.omega.size());
+    EXPECT_EQ(candidate.theta.size(), candidate.energy.size());
+    EXPECT_EQ(reference.theta.size(), reference.energy.size());
+    return ratio;
+}
+
+double component_rms_error(const std::vector<double>& candidate,
+                           const std::vector<double>& reference,
+                           size_t ratio) {
+    EXPECT_TRUE(reference.size() >= (candidate.size() - 1u) * ratio + 1u);
+
+    double sq_sum = 0.0;
+    for (size_t i = 0; i < candidate.size(); ++i) {
+        const size_t ref_i = i * ratio;
+        const double delta = candidate[i] - reference[ref_i];
+        sq_sum += delta * delta;
+    }
+    return std::sqrt(sq_sum / static_cast<double>(candidate.size()));
+}
+
+double trajectory_rms_error(const Trajectory& candidate, const Trajectory& reference) {
+    const size_t ratio = checked_ratio(candidate, reference);
 
     double sq_sum = 0.0;
     for (size_t i = 0; i < candidate.theta.size(); ++i) {
@@ -111,6 +134,18 @@ double trajectory_rms_error(const Trajectory& candidate, const Trajectory& refer
         sq_sum += d_theta * d_theta + d_omega * d_omega;
     }
     return std::sqrt(sq_sum / static_cast<double>(candidate.theta.size()));
+}
+
+double trajectory_theta_rms_error(const Trajectory& candidate, const Trajectory& reference) {
+    return component_rms_error(candidate.theta, reference.theta, checked_ratio(candidate, reference));
+}
+
+double trajectory_omega_rms_error(const Trajectory& candidate, const Trajectory& reference) {
+    return component_rms_error(candidate.omega, reference.omega, checked_ratio(candidate, reference));
+}
+
+double trajectory_energy_rms_error(const Trajectory& candidate, const Trajectory& reference) {
+    return component_rms_error(candidate.energy, reference.energy, checked_ratio(candidate, reference));
 }
 
 double loglog_slope(const std::vector<double>& dts, const std::vector<double>& errors) {
@@ -135,6 +170,32 @@ double loglog_slope(const std::vector<double>& dts, const std::vector<double>& e
     const double denom = static_cast<double>(n) * sum_xx - sum_x * sum_x;
     EXPECT_TRUE(std::fabs(denom) > 1e-18);
     return (static_cast<double>(n) * sum_xy - sum_x * sum_y) / denom;
+}
+
+double filtered_loglog_slope(const std::vector<double>& dts, const std::vector<double>& errors) {
+    EXPECT_EQ(dts.size(), errors.size());
+    EXPECT_TRUE(dts.size() >= 3u);
+
+    std::vector<double> sorted_errors = errors;
+    std::sort(sorted_errors.begin(), sorted_errors.end());
+    const size_t tail_count = std::min<size_t>(3u, sorted_errors.size());
+    const double floor_est = sorted_errors[tail_count / 2u];
+    const double threshold = floor_est * 8.0;
+
+    size_t fit_count = errors.size();
+    for (size_t i = 0; i < errors.size(); ++i) {
+        if (errors[i] <= threshold && i >= 3u) {
+            fit_count = i;
+            break;
+        }
+    }
+    if (fit_count < 3u) {
+        fit_count = errors.size();
+    }
+
+    std::vector<double> fit_dts(dts.begin(), dts.begin() + static_cast<std::ptrdiff_t>(fit_count));
+    std::vector<double> fit_errors(errors.begin(), errors.begin() + static_cast<std::ptrdiff_t>(fit_count));
+    return loglog_slope(fit_dts, fit_errors);
 }
 
 std::string format_dt_for_path(double dt) {
@@ -176,6 +237,48 @@ void write_convergence_csv(
                  << std::setprecision(17) << errors[i] << "\n";
         }
     }
+}
+
+void write_numerov_convergence_report(
+    const std::vector<double>& dts,
+    const std::vector<double>& theta_errors,
+    const std::vector<double>& omega_errors,
+    const std::vector<double>& state_errors,
+    const std::vector<double>& energy_errors) {
+    const std::filesystem::path out_dir = "tests/artifacts/convergence";
+    std::filesystem::create_directories(out_dir);
+
+    const std::filesystem::path report_csv = out_dir / "numerov_convergence_report.csv";
+    std::ofstream report(report_csv);
+    if (!report.is_open()) {
+        throw std::runtime_error("Could not write Numerov convergence report: " + report_csv.string());
+    }
+
+    EXPECT_EQ(theta_errors.size(), dts.size());
+    EXPECT_EQ(omega_errors.size(), dts.size());
+    EXPECT_EQ(state_errors.size(), dts.size());
+    EXPECT_EQ(energy_errors.size(), dts.size());
+
+    report << "dt,rms_theta_error,rms_omega_error,rms_state_error,rms_energy_error\n";
+    for (size_t i = 0; i < dts.size(); ++i) {
+        report << std::setprecision(17) << dts[i] << ","
+               << theta_errors[i] << ","
+               << omega_errors[i] << ","
+               << state_errors[i] << ","
+               << energy_errors[i] << "\n";
+    }
+
+    const std::filesystem::path summary_csv = out_dir / "numerov_convergence_summary.csv";
+    std::ofstream summary(summary_csv);
+    if (!summary.is_open()) {
+        throw std::runtime_error("Could not write Numerov convergence summary: " + summary_csv.string());
+    }
+
+    summary << "metric,filtered_gradient\n";
+    summary << "theta," << std::setprecision(12) << filtered_loglog_slope(dts, theta_errors) << "\n";
+    summary << "omega," << std::setprecision(12) << filtered_loglog_slope(dts, omega_errors) << "\n";
+    summary << "state," << std::setprecision(12) << filtered_loglog_slope(dts, state_errors) << "\n";
+    summary << "energy," << std::setprecision(12) << filtered_loglog_slope(dts, energy_errors) << "\n";
 }
 
 void maybe_render_convergence_plot() {
@@ -471,8 +574,27 @@ TEST(SerialIntegrationSimplePendulumConvergesWithIncreasingResolutionAcrossInteg
         run_simple_serial_case(temp, "reference", "rk5", reference_dt, t_max, theta0, omega0);
 
     std::map<std::string, std::vector<double>> errors_by_method;
+    std::vector<double> numerov_theta_errors;
+    std::vector<double> numerov_omega_errors;
+    std::vector<double> numerov_state_errors;
+    std::vector<double> numerov_energy_errors;
 
-    for (const std::string& method : std::array<std::string, 8>{"rk3", "rk4", "rk5", "rk23", "rkf45", "semi_implicit_euler", "leapfrog", "ruth4"}) {
+    const std::map<std::string, std::pair<double, double>> expected_orders = {
+        {"rk3", {2.5, 3.5}},
+        {"rk4", {3.5, 4.5}},
+        {"rk5", {4.3, 5.7}},
+        {"rk23", {2.5, 3.5}},
+        {"rkf45", {4.3, 5.7}},
+        {"den3", {3.5, 4.5}},
+        {"semi_implicit_euler", {0.8, 1.3}},
+        {"leapfrog", {1.7, 2.3}},
+        {"ruth4", {3.3, 4.7}},
+        {"velocity_verlet", {1.7, 2.3}},
+        {"runge_kutta_nystrom", {3.5, 4.5}},
+        {"numerov", {3.3, 4.5}},
+    };
+
+    for (const auto& [method, expected_order] : expected_orders) {
         std::vector<double> errors;
         errors.reserve(dts.size());
         for (double dt : dts) {
@@ -484,15 +606,30 @@ TEST(SerialIntegrationSimplePendulumConvergesWithIncreasingResolutionAcrossInteg
                 t_max,
                 theta0,
                 omega0);
-            errors.push_back(trajectory_rms_error(traj, reference));
+            const double state_error = trajectory_rms_error(traj, reference);
+            errors.push_back(state_error);
+
+            if (method == "numerov") {
+                numerov_theta_errors.push_back(trajectory_theta_rms_error(traj, reference));
+                numerov_omega_errors.push_back(trajectory_omega_rms_error(traj, reference));
+                numerov_state_errors.push_back(state_error);
+                numerov_energy_errors.push_back(trajectory_energy_rms_error(traj, reference));
+            }
         }
 
-        const double slope = loglog_slope(dts, errors);
-        EXPECT_TRUE(slope > 1.0);
+        const double slope = filtered_loglog_slope(dts, errors);
+        EXPECT_TRUE(slope > expected_order.first);
+        EXPECT_TRUE(slope < expected_order.second);
         EXPECT_TRUE(errors.back() < errors.front() * 0.2);
         errors_by_method[method] = std::move(errors);
     }
 
     write_convergence_csv(dts, errors_by_method);
+    write_numerov_convergence_report(
+        dts,
+        numerov_theta_errors,
+        numerov_omega_errors,
+        numerov_state_errors,
+        numerov_energy_errors);
     maybe_render_convergence_plot();
 }
