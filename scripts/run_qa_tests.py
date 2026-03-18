@@ -32,7 +32,9 @@ def find_qa_yamls(qa_dir: Path) -> list[Path]:
 def get_output_paths(config_path: Path) -> list[Path]:
     """Extract output file paths from a YAML config. Returns paths relative to project root."""
     paths = []
-    data_file_re = re.compile(r'^\s*data_file:\s*["\']?([^"\'\s]+)["\']?\s*(?:#.*)?$')
+    data_file_re = re.compile(
+        r'^\s*(?:data_file|sweep_data_file):\s*["\']?([^"\'\s]+)["\']?\s*(?:#.*)?$'
+    )
     with open(config_path) as f:
         for line in f:
             m = data_file_re.match(line.strip())
@@ -141,10 +143,16 @@ def run_simulation(exec_path: Path, config_path: Path, cwd: Path) -> subprocess.
 
 
 @dataclass(frozen=True)
-class AnalysisRegression:
+class AnalysisArtifact:
     name: str
     baseline_path: Path
     generated_path: Path
+
+
+@dataclass(frozen=True)
+class AnalysisRegression:
+    name: str
+    artifacts: tuple[AnalysisArtifact, ...]
     command: list[str]
     timeout_seconds: int = 300
 
@@ -153,8 +161,13 @@ def build_analysis_regressions(project_root: Path) -> list[AnalysisRegression]:
     return [
         AnalysisRegression(
             name="driven_bifurcation_v",
-            baseline_path=project_root / "QA" / "driven_pendulum" / "outputs" / "driven_bifurcation_v_reference.csv",
-            generated_path=project_root / "outputs" / "qa_driven_bifurcation_v.csv",
+            artifacts=(
+                AnalysisArtifact(
+                    name="driven_bifurcation_v",
+                    baseline_path=project_root / "QA" / "driven_pendulum" / "outputs" / "driven_bifurcation_v_reference.csv",
+                    generated_path=project_root / "outputs" / "qa_driven_bifurcation_v.csv",
+                ),
+            ),
             command=[
                 sys.executable,
                 str(project_root / "scripts" / "analyze_driven_chaos.py"),
@@ -168,7 +181,7 @@ def build_analysis_regressions(project_root: Path) -> list[AnalysisRegression]:
                 "--max",
                 "0.746",
                 "--steps",
-                "64",
+                "192",
                 "--warmup-periods",
                 "160",
                 "--sample-periods",
@@ -183,12 +196,70 @@ def build_analysis_regressions(project_root: Path) -> list[AnalysisRegression]:
                 "qa_driven_bifurcation_v",
             ],
         ),
+        AnalysisRegression(
+            name="driven_resonance_sweep",
+            artifacts=(
+                AnalysisArtifact(
+                    name="driven_resonance_sweep_curve",
+                    baseline_path=project_root / "QA" / "driven_pendulum" / "outputs" / "driven_resonance_reference.csv",
+                    generated_path=project_root / "outputs" / "qa_driven_resonance.csv",
+                ),
+                AnalysisArtifact(
+                    name="driven_resonance_sweep_drift",
+                    baseline_path=project_root / "QA" / "driven_pendulum" / "outputs" / "driven_resonance_drift_reference.csv",
+                    generated_path=project_root / "outputs" / "qa_driven_resonance_drift.csv",
+                ),
+            ),
+            command=[
+                sys.executable,
+                str(project_root / "scripts" / "analyze_resonance.py"),
+                "--base-config",
+                str(project_root / "QA" / "driven_pendulum" / "driven_pendulum_sweep.yaml"),
+                "--output-prefix",
+                "qa_driven_resonance",
+                "--use-native-sweep",
+                "--max-rmse",
+                "2e-3",
+                "--max-abs-drift",
+                "5e-3",
+                "--max-peak-frequency-drift",
+                "8e-2",
+                "--max-peak-amplitude-drift",
+                "5e-3",
+            ],
+        ),
+        AnalysisRegression(
+            name="driven_lyapunov",
+            artifacts=(
+                AnalysisArtifact(
+                    name="driven_lyapunov",
+                    baseline_path=project_root / "QA" / "driven_pendulum" / "outputs" / "driven_lyapunov_reference.csv",
+                    generated_path=project_root / "outputs" / "qa_driven_lyapunov.csv",
+                ),
+            ),
+            command=[
+                sys.executable,
+                str(project_root / "scripts" / "analyze_driven_chaos.py"),
+                "lyapunov",
+                "--base-config",
+                str(project_root / "QA" / "driven_pendulum" / "driven_pendulum.yaml"),
+                "--transient-periods",
+                "120",
+                "--sample-periods",
+                "240",
+                "--steps-per-period",
+                "300",
+                "--output-prefix",
+                "qa_driven_lyapunov",
+            ],
+        ),
     ]
 
 
 def run_analysis_regression(case: AnalysisRegression, cwd: Path) -> subprocess.CompletedProcess:
     env = os.environ.copy()
     env.setdefault("MPLBACKEND", "Agg")
+    env.setdefault("MPLCONFIGDIR", str(Path(tempfile.gettempdir()) / "pendulum_mplconfig"))
     return subprocess.run(
         case.command,
         cwd=str(cwd),
@@ -333,7 +404,7 @@ def main():
 
     analysis_failures = []
     analysis_regressions = build_analysis_regressions(project_root)
-    analysis_results: list[tuple[AnalysisRegression, dict]] = []
+    analysis_results: list[tuple[AnalysisArtifact, dict]] = []
 
     if analysis_regressions:
         print("\nRunning analysis regressions...\n")
@@ -345,21 +416,35 @@ def main():
                 analysis_failures.append((case.name, proc.stderr or proc.stdout or ""))
                 continue
 
-            if not case.generated_path.exists():
+            missing_outputs = [
+                artifact.generated_path
+                for artifact in case.artifacts
+                if not artifact.generated_path.exists()
+            ]
+            if missing_outputs:
                 print("FAILED")
                 analysis_failures.append(
-                    (case.name, f"Expected analysis output was not generated: {case.generated_path}")
+                    (
+                        case.name,
+                        "Expected analysis output was not generated: "
+                        + ", ".join(str(path) for path in missing_outputs),
+                    )
                 )
                 continue
 
             print("OK")
             if args.compare:
-                analysis_results.append(
-                    (
-                        case,
-                        compare_data(case.baseline_path, case.generated_path, case.name),
+                for artifact in case.artifacts:
+                    analysis_results.append(
+                        (
+                            artifact,
+                            compare_data(
+                                artifact.baseline_path,
+                                artifact.generated_path,
+                                artifact.name,
+                            ),
+                        )
                     )
-                )
 
     if analysis_failures:
         print("\nAnalysis regression failures:")
@@ -371,10 +456,10 @@ def main():
 
     if args.compare and analysis_results:
         print("\n" + "=" * 60)
-        print("Comparison: driven-chaos analysis vs reference values")
+        print("Comparison: analysis regressions vs reference values")
         print("=" * 60)
-        for case, result in analysis_results:
-            rel = case.generated_path.relative_to(project_root)
+        for artifact, result in analysis_results:
+            rel = artifact.generated_path.relative_to(project_root)
             all_ok = print_comparison_result(result, str(rel), args.tolerance) and all_ok
 
     if args.compare:

@@ -1,0 +1,30 @@
+
+# Equation: theta'' + (g/L)*(a1*theta + a3*theta^3) = A*cos(omega_drive*t)
+physical:
+  L: 2.736E-17
+  g: 1.0
+  damping: 0.0
+  A: 3.65497076E-4
+  omega_drive: 10.1E6
+  theta0: 0.0
+  omega0: 0.0
+  restoring_force_model: "polynomial"
+  restoring_force_linear: 4.49797E-1
+  restoring_force_cubic: 3.88204E15
+
+simulation:
+  t_start: 0.0
+  t_end: 0.00005
+  dt: 0.0000000005
+  output_every: 1
+
+integrator: "rk5"
+settings:
+  plotting_method: "new"
+  error_mode: none
+  show_plot: false
+  save_png: true
+  plot_phase_map: true
+  run_plotter: false
+  output_png: "QA/graphene_duffing_l/outputs/duffing_undamped.png"
+  data_file: "QA/graphene_duffing_l/outputs/duffing_undamped.csv"

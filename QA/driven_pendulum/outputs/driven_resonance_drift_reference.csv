@@ -1,0 +1,2 @@
+omega0,theoretical_peak_frequency,numerical_peak_frequency,analytical_peak_frequency,peak_frequency_abs_drift,numerical_peak_amplitude,analytical_peak_amplitude,peak_amplitude_abs_drift,mean_abs_drift,max_abs_drift,rmse_abs_drift,mean_rel_drift,max_rel_drift
+3.132091952673165,3.10322412983658,3.1,3.1,0.0,0.02670615,0.02672765152925502,2.1501529255018442e-05,8.201167878732576e-06,3.698283707980615e-05,1.119201873941726e-05,0.0004260610055213917,0.001386708905138916

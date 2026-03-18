@@ -80,3 +80,36 @@ TEST(DampedIoUsesScientificNotation) {
     std::getline(file, line);  // first data row
     EXPECT_TRUE(line.find('e') != std::string::npos || line.find('E') != std::string::npos);
 }
+
+TEST(DrivenIoUsesScientificNotation) {
+    TempDir temp;
+    const auto out_path = temp.child("driven_scientific.csv");
+
+    const SimulationResult input = sample_result();
+    write_driven_data_file(out_path.string(), input);
+
+    std::ifstream file(out_path);
+    EXPECT_TRUE(file.is_open());
+    std::string line;
+    std::getline(file, line);  // header
+    std::getline(file, line);  // first data row
+    EXPECT_TRUE(line.find('e') != std::string::npos || line.find('E') != std::string::npos);
+}
+
+TEST(DrivenSweepIoWritesExpectedCsv) {
+    TempDir temp;
+    const auto out_path = temp.child("driven_sweep.csv");
+
+    DrivenSweepResult result;
+    result.samples.push_back({1.0, 0.1, 0.09, 0.08, 0.11, 0.02, -0.03});
+    result.samples.push_back({1.2, 0.2, 0.18, 0.16, 0.21, 0.01, -0.02});
+
+    write_driven_sweep_data_file(out_path.string(), result);
+
+    const CsvData csv = read_csv(out_path);
+    EXPECT_EQ(csv.header,
+              "DriveFrequency,NumericalAmplitude,AnalyticalAmplitude,AnalyticalLowerStable,AnalyticalUpperStable,FinalTheta,FinalOmega");
+    EXPECT_EQ(csv.rows.size(), 2u);
+    EXPECT_NEAR(csv.rows[1][1], 0.2, 1e-12);
+    EXPECT_NEAR(csv.rows[0][4], 0.11, 1e-12);
+}

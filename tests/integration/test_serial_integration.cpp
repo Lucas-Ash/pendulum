@@ -546,6 +546,50 @@ TEST(SerialIntegrationDrivenPendulumFlowWritesExpectedCsv) {
     EXPECT_TRUE(std::fabs(csv.rows.back()[2]) < 5.0);
 }
 
+TEST(SerialIntegrationDrivenDuffingSweepWritesExpectedCsv) {
+    EnvVarGuard guard("QA_TEST");
+    guard.set("1");
+
+    TempDir temp;
+    const auto config_path = temp.write_file(
+        "driven_duffing_sweep.yaml",
+        "physical:\n"
+        "  system_model: duffing\n"
+        "  mass: 1.0\n"
+        "  linear_stiffness: 1.0\n"
+        "  cubic_stiffness: 50.0\n"
+        "  drive_force: 0.4\n"
+        "  damping: 0.05\n"
+        "simulation:\n"
+        "  t_start: 0.0\n"
+        "  t_end: 1.0\n"
+        "  dt: 0.01\n"
+        "sweep:\n"
+        "  enabled: true\n"
+        "  omega_start: 0.8\n"
+        "  omega_end: 2.5\n"
+        "  points: 10\n"
+        "  settle_time: 8.0\n"
+        "settings:\n"
+        "  error_mode: none\n"
+        "  run_plotter: false\n"
+        "  save_png: false\n"
+        "  show_plot: false\n"
+        "  sweep_data_file: \"serial/driven_sweep.csv\"\n");
+
+    const DrivenConfig cfg = load_driven_config_from_yaml(config_path.string());
+    const auto output_path = temp.child(cfg.settings.sweep_data_file);
+    std::filesystem::create_directories(output_path.parent_path());
+
+    const DrivenSweepResult result = DrivenPendulumSimulator(cfg).simulate_sweep();
+    write_driven_sweep_data_file(output_path.string(), result);
+
+    const CsvData csv = read_csv(output_path);
+    EXPECT_EQ(csv.rows.size(), static_cast<size_t>(cfg.sweep.points));
+    EXPECT_EQ(csv.rows.front().size(), 7u);
+    EXPECT_TRUE(csv.rows[5][1] > 0.0);
+}
+
 TEST(SerialIntegrationSimplePendulumConvergesWithIncreasingResolutionAcrossIntegrators) {
     EnvVarGuard guard("QA_TEST");
     guard.set("1");

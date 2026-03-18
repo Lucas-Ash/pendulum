@@ -41,10 +41,18 @@ SimulationType detect_simulation_type(const std::string& config_path) {
     std::string line;
     bool has_gamma = false;
     bool has_omega_drive = false;
+    bool has_explicit_driven_mode = false;
 
     while (std::getline(file, line)) {
         if (line.find("omega_drive:") != std::string::npos) {
             has_omega_drive = true;
+        } else if ((line.find("system_model:") != std::string::npos ||
+                    line.find("mode:") != std::string::npos) &&
+                   line.find("duffing") != std::string::npos) {
+            has_explicit_driven_mode = true;
+        } else if (line.find("drive_force:") != std::string::npos ||
+                   line.find("sweep:") != std::string::npos) {
+            has_explicit_driven_mode = true;
         } else if (line.find("gamma:") != std::string::npos ||
                    line.find("damping:") != std::string::npos ||
                    line.find("damping_model:") != std::string::npos ||
@@ -54,7 +62,7 @@ SimulationType detect_simulation_type(const std::string& config_path) {
         }
     }
 
-    if (has_omega_drive) return SimulationType::Driven;
+    if (has_omega_drive || has_explicit_driven_mode) return SimulationType::Driven;
     if (has_gamma) return SimulationType::Damped;
     return SimulationType::Simple;
 }
@@ -140,15 +148,22 @@ int run_driven(const std::string& config_path) {
     try {
         std::cout << "Running simulation...\n";
         DrivenPendulumSimulator simulator(config);
-        SimulationResult result = simulator.simulate();
+        if (config.sweep.enabled) {
+            DrivenSweepResult result = simulator.simulate_sweep();
+            write_driven_sweep_data_file(config.settings.sweep_data_file, result);
+            std::cout << "Sweep data saved to " << config.settings.sweep_data_file << "\n";
+            print_driven_sweep_summary(config, result);
+            std::cout << "To view the graph, run: python3 " << config.settings.python_script << "\n";
+            render_driven_sweep_plots(config, result);
+        } else {
+            SimulationResult result = simulator.simulate();
+            write_driven_data_file(config.settings.data_file, result);
+            std::cout << "Data saved to " << config.settings.data_file << "\n";
 
-        write_driven_data_file(config.settings.data_file, result);
-        std::cout << "Data saved to " << config.settings.data_file << "\n";
-
-        print_driven_simulation_summary(config, result);
-        
-        std::cout << "To view the graph, run: python3 " << config.settings.python_script << "\n";
-        render_driven_plots(config, result);
+            print_driven_simulation_summary(config, result);
+            std::cout << "To view the graph, run: python3 " << config.settings.python_script << "\n";
+            render_driven_plots(config, result);
+        }
         // std::cout << "Driven simulation finished successfully. (IO/Plots temporarily disabled)\n";
     } catch (const std::exception& ex) {
         std::cerr << "Simulation failed: " << ex.what() << "\n";

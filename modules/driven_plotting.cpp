@@ -1,6 +1,7 @@
 #include "modules/driven_plotting.h"
 
 #include <cstdlib>
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <stdexcept>
@@ -12,6 +13,11 @@ void generate_plot_script(const DrivenConfig& config, const SimulationResult& re
     const auto& s = config.settings;
     const auto& p = config.physical;
     const auto& sim = config.simulation;
+
+    const std::filesystem::path script_path(s.python_script);
+    if (script_path.has_parent_path()) {
+        std::filesystem::create_directories(script_path.parent_path());
+    }
     
     std::ofstream script(s.python_script);
     if (!script.is_open()) {
@@ -109,6 +115,63 @@ void generate_plot_script(const DrivenConfig& config, const SimulationResult& re
     script.close();
 }
 
+void generate_sweep_plot_script(const DrivenConfig& config,
+                                const DrivenSweepResult& result) {
+    const auto& s = config.settings;
+    const char* title =
+        config.physical.system_model == DrivenSystemModel::Duffing
+            ? "Driven Duffing sweep"
+            : "Driven pendulum sweep";
+
+    const std::filesystem::path script_path(s.python_script);
+    if (script_path.has_parent_path()) {
+        std::filesystem::create_directories(script_path.parent_path());
+    }
+
+    std::ofstream script(s.python_script);
+    if (!script.is_open()) {
+        throw std::runtime_error("Could not create plotting script: " + s.python_script);
+    }
+
+    script << "#!/usr/bin/env python3\n";
+    script << "from pathlib import Path\n";
+    script << "import numpy as np\n";
+    script << "import matplotlib.pyplot as plt\n\n";
+    script << "root = Path(__file__).resolve().parents[3]\n";
+    script << "data = np.loadtxt(root / '" << s.sweep_data_file
+           << "', delimiter=',', skiprows=1)\n";
+    script << "data = np.atleast_2d(data)\n";
+    script << "freq = data[:, 0]\n";
+    script << "num = data[:, 1]\n";
+    script << "ana = data[:, 2]\n";
+    script << "low = data[:, 3]\n";
+    script << "high = data[:, 4]\n\n";
+    script << "fig, ax = plt.subplots(figsize=(10, 6))\n";
+    script << "ax.plot(freq, num, marker='o', markersize=3.0, linewidth=1.8, "
+              "label='Numerical amplitude')\n";
+    script << "if np.any(ana > 0):\n";
+    script << "    ax.plot(freq, ana, '--', linewidth=1.4, label='Analytical amplitude')\n";
+    script << "if np.any(high > low):\n";
+    script << "    ax.plot(freq, low, ':', linewidth=1.0, label='Analytical lower stable')\n";
+    script << "    ax.plot(freq, high, ':', linewidth=1.0, label='Analytical upper stable')\n";
+    script << "ax.set_xlabel('Drive frequency (rad/s)')\n";
+    script << "ax.set_ylabel('Steady-state amplitude')\n";
+    script << "ax.set_title('" << title << "')\n";
+    script << "ax.grid(True, alpha=0.3)\n";
+    script << "ax.legend()\n";
+    script << "plt.tight_layout()\n";
+    if (s.save_png) {
+        script << "plt.savefig(root / '" << s.output_png << "', dpi=150, bbox_inches='tight')\n";
+    }
+    if (s.show_plot) {
+        script << "plt.show()\n";
+    } else {
+        script << "plt.close(fig)\n";
+    }
+    script.close();
+    (void)result;
+}
+
 } // namespace
 
 void render_driven_plots(const DrivenConfig& config, const SimulationResult& result) {
@@ -120,5 +183,16 @@ void render_driven_plots(const DrivenConfig& config, const SimulationResult& res
         }
     } else {
         std::cerr << "Warning: 'original' plotting method (gnuplot) is not implemented for driven pendulum.\n";
+    }
+}
+
+void render_driven_sweep_plots(const DrivenConfig& config, const DrivenSweepResult& result) {
+    if (config.settings.plotting_method == DrivenPlottingMethod::New) {
+        generate_sweep_plot_script(config, result);
+        if (config.settings.run_plotter) {
+            plotting_utils::run_python_script(config.settings.python_script);
+        }
+    } else {
+        std::cerr << "Warning: 'original' plotting method (gnuplot) is not implemented for driven sweeps.\n";
     }
 }

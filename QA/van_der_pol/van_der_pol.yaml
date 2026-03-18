@@ -25,7 +25,7 @@ settings:
   run_plotter: false
   data_file: "QA/van_der_pol/outputs/van_der_pol.dat"
   output_png: "QA/van_der_pol/outputs/van_der_pol.png"
-  python_script: "QA/damped_pendulum/outputs/plot_damped_pendulum.py"
+  python_script: "QA/van_der_pol/outputs/plot_van_der_pol.py"
   integrator: "rk5"
   analytical_model: "van_der_pol"
   error_analysis: analytical

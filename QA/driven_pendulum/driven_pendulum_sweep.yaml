@@ -1,0 +1,37 @@
+physical:
+  g: 9.81
+  L: 1.0
+  damping: 0.6
+  A: 0.05
+  omega_drive: 3.1
+  theta0: 0.0
+  omega0: 0.0
+
+simulation:
+  t_start: 0.0
+  t_end: 30.0
+  dt: 0.001
+  output_every: 10
+
+integrator: "rk5"
+error_mode: none
+
+sweep:
+  enabled: true
+  omega_start: 2.4
+  omega_end: 3.8
+  points: 61
+  settle_time: 30.0
+  direction: ascending
+  reuse_final_state: true
+  analytical_branch_tracking: false
+
+settings:
+  plotting_method: new
+  show_plot: false
+  save_png: true
+  plot_phase_map: false
+  run_plotter: false
+  sweep_data_file: "QA/driven_pendulum/outputs/driven_pendulum_sweep.csv"
+  output_png: "QA/driven_pendulum/outputs/driven_pendulum_sweep.png"
+  python_script: "QA/driven_pendulum/outputs/plot_driven_pendulum_sweep.py"

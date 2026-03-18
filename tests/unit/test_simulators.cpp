@@ -6,9 +6,12 @@
 
 #include "modules/damped_simulator.h"
 #include "modules/driven_simulator.h"
+#include "modules/frequency_estimation.h"
 #include "modules/pendulum_simulator.h"
 
 namespace {
+
+constexpr double kTwoPi = 6.28318530717958647692;
 
 double max_in_vector(const std::vector<double>& values) {
     double v = values.empty() ? 0.0 : values.front();
@@ -42,6 +45,27 @@ double correlation_with_driver(
     }
     const double denom = std::sqrt(den_theta * den_drive);
     return denom > 1e-15 ? num / denom : 0.0;
+}
+
+double estimate_frequency_from_window(const SimulationResult& result,
+                                      size_t begin,
+                                      size_t end,
+                                      double expected_hz) {
+    const std::vector<double> window =
+        frequency_estimation::slice(result.theta, begin, end);
+    const double dt = result.t[1] - result.t[0];
+    return frequency_estimation::estimate_dominant_frequency_hz(window, dt, expected_hz, 0.4);
+}
+
+double linear_driven_amplitude(double g,
+                               double length,
+                               double damping,
+                               double drive_amplitude,
+                               double drive_frequency) {
+    const double omega0_sq = g / length;
+    const double detuning = omega0_sq - drive_frequency * drive_frequency;
+    const double damping_term = damping * drive_frequency;
+    return drive_amplitude / std::sqrt(detuning * detuning + damping_term * damping_term);
 }
 
 }  // namespace
@@ -446,4 +470,193 @@ TEST(DrivenSimulatorCanDisableErrorAnalysis) {
     const SimulationResult out = sim.simulate();
     EXPECT_FALSE(out.t.empty());
     EXPECT_TRUE(out.theta_stats.max_abs < 1e-15);
+}
+
+TEST(DrivenSimulatorExplicitDuffingMassJumpLowersFrequency) {
+    DrivenConfig cfg;
+    cfg.physical.system_model = DrivenSystemModel::Duffing;
+    cfg.physical.mass = 1.0;
+    cfg.physical.linear_stiffness = 100.0;
+    cfg.physical.cubic_stiffness = 0.0;
+    cfg.physical.drive_force = 0.0;
+    cfg.physical.damping = 0.0;
+    cfg.physical.theta0 = 0.2;
+    cfg.physical.omega0 = 0.0;
+    cfg.simulation.t_start = 0.0;
+    cfg.simulation.t_end = 8.0;
+    cfg.simulation.dt = 0.002;
+    cfg.settings.error_mode = error_reference::Mode::None;
+    cfg.mass_event.enabled = true;
+    cfg.mass_event.jump_time = 4.0;
+    cfg.mass_event.delta_mass = 0.2;
+
+    const SimulationResult out = DrivenPendulumSimulator(cfg).simulate();
+    EXPECT_FALSE(out.t.empty());
+
+    const double pre_hz = estimate_frequency_from_window(out, 500, 1800, 10.0 / kTwoPi);
+    const double post_hz = estimate_frequency_from_window(out, 2500, 3800, 9.0 / kTwoPi);
+    EXPECT_TRUE(post_hz < pre_hz);
+}
+
+TEST(DrivenSimulatorCoreNoiseIsDeterministicPerSeed) {
+    DrivenConfig cfg;
+    cfg.physical.system_model = DrivenSystemModel::Duffing;
+    cfg.physical.mass = 1.0;
+    cfg.physical.linear_stiffness = 25.0;
+    cfg.physical.cubic_stiffness = 0.0;
+    cfg.physical.drive_force = 0.05;
+    cfg.physical.omega_drive = 4.8;
+    cfg.physical.damping = 0.05;
+    cfg.physical.theta0 = 0.0;
+    cfg.physical.omega0 = 0.0;
+    cfg.simulation.t_end = 3.0;
+    cfg.simulation.dt = 0.005;
+    cfg.settings.error_mode = error_reference::Mode::None;
+    cfg.noise.enabled = true;
+    cfg.noise.force_stddev = 0.02;
+    cfg.noise.seed = 123;
+    cfg.noise.correlation_time = 0.01;
+
+    const SimulationResult first = DrivenPendulumSimulator(cfg).simulate();
+    const SimulationResult second = DrivenPendulumSimulator(cfg).simulate();
+    EXPECT_EQ(first.theta.size(), second.theta.size());
+    EXPECT_TRUE(std::abs(first.theta.back() - second.theta.back()) < 1e-12);
+
+    cfg.noise.seed = 124;
+    const SimulationResult different = DrivenPendulumSimulator(cfg).simulate();
+    EXPECT_TRUE(std::abs(first.theta.back() - different.theta.back()) > 1e-6);
+}
+
+TEST(DrivenSimulatorSweepTracksDifferentStableBranchesByDirection) {
+    DrivenConfig cfg;
+    cfg.physical.system_model = DrivenSystemModel::Duffing;
+    cfg.physical.mass = 1.0;
+    cfg.physical.linear_stiffness = 1.0;
+    cfg.physical.cubic_stiffness = 50.0;
+    cfg.physical.drive_force = 0.4;
+    cfg.physical.damping = 0.05;
+    cfg.simulation.dt = 0.01;
+    cfg.settings.error_mode = error_reference::Mode::None;
+    cfg.sweep.enabled = true;
+    cfg.sweep.omega_start = 0.8;
+    cfg.sweep.omega_end = 2.5;
+    cfg.sweep.points = 18;
+    cfg.sweep.settle_time = 30.0;
+
+    DrivenConfig descending = cfg;
+    descending.sweep.direction = DrivenSweepDirection::Descending;
+
+    const DrivenSweepResult ascending_out = DrivenPendulumSimulator(cfg).simulate_sweep();
+    const DrivenSweepResult descending_out = DrivenPendulumSimulator(descending).simulate_sweep();
+
+    EXPECT_EQ(ascending_out.samples.size(), 18u);
+    EXPECT_EQ(descending_out.samples.size(), 18u);
+
+    const DrivenSweepSample& ascending_sample =
+        ascending_out.samples[static_cast<size_t>(14)];
+    const DrivenSweepSample& descending_sample =
+        descending_out.samples[static_cast<size_t>(3)];
+
+    EXPECT_TRUE(
+        std::abs(ascending_sample.analytical_upper_stable_amplitude -
+                 ascending_sample.analytical_lower_stable_amplitude) > 5e-2);
+    EXPECT_TRUE(std::abs(
+                    ascending_sample.analytical_amplitude -
+                    ascending_sample.analytical_lower_stable_amplitude) < 1e-6);
+    EXPECT_TRUE(std::abs(
+                    descending_sample.analytical_amplitude -
+                    descending_sample.analytical_upper_stable_amplitude) < 1e-6);
+}
+
+TEST(DrivenSimulatorLinearPendulumSweepMatchesAnalyticalAmplitudeCurve) {
+    DrivenConfig cfg;
+    cfg.physical.g = 9.81;
+    cfg.physical.L = 1.0;
+    cfg.physical.damping = 0.6;
+    cfg.physical.A = 0.05;
+    cfg.physical.theta0 = 0.0;
+    cfg.physical.omega0 = 0.0;
+    cfg.simulation.dt = 0.002;
+    cfg.settings.error_mode = error_reference::Mode::None;
+    cfg.sweep.enabled = true;
+    cfg.sweep.omega_start = 2.5;
+    cfg.sweep.omega_end = 3.7;
+    cfg.sweep.points = 13;
+    cfg.sweep.settle_time = 24.0;
+    cfg.sweep.reuse_final_state = false;
+
+    const DrivenSweepResult out = DrivenPendulumSimulator(cfg).simulate_sweep();
+    EXPECT_EQ(out.samples.size(), 13u);
+
+    double sq_error_sum = 0.0;
+    size_t peak_index_numerical = 0u;
+    size_t peak_index_analytical = 0u;
+    double peak_numerical = -1.0;
+    double peak_analytical = -1.0;
+
+    for (size_t i = 0; i < out.samples.size(); ++i) {
+        const auto& sample = out.samples[i];
+        const double analytical = linear_driven_amplitude(
+            cfg.physical.g,
+            cfg.physical.L,
+            cfg.physical.damping,
+            cfg.physical.A,
+            sample.drive_frequency);
+        const double error = sample.numerical_amplitude - analytical;
+        sq_error_sum += error * error;
+
+        if (sample.numerical_amplitude > peak_numerical) {
+            peak_numerical = sample.numerical_amplitude;
+            peak_index_numerical = i;
+        }
+        if (analytical > peak_analytical) {
+            peak_analytical = analytical;
+            peak_index_analytical = i;
+        }
+    }
+
+    const double rmse = std::sqrt(sq_error_sum / static_cast<double>(out.samples.size()));
+    EXPECT_TRUE(rmse < 8e-4);
+    EXPECT_TRUE(std::abs(static_cast<long long>(peak_index_numerical) -
+                         static_cast<long long>(peak_index_analytical)) <= 1);
+}
+
+TEST(DrivenSimulatorUnitScalesMatchManualDuffingNormalization) {
+    DrivenConfig scaled_from_physical;
+    scaled_from_physical.physical.system_model = DrivenSystemModel::Duffing;
+    scaled_from_physical.physical.mass = 2.0;
+    scaled_from_physical.physical.linear_stiffness = 8.0;
+    scaled_from_physical.physical.cubic_stiffness = 32.0;
+    scaled_from_physical.physical.drive_force = 0.4;
+    scaled_from_physical.physical.omega_drive = 1.6;
+    scaled_from_physical.physical.damping = 0.2;
+    scaled_from_physical.physical.theta0 = 0.1;
+    scaled_from_physical.physical.omega0 = -0.05;
+    scaled_from_physical.simulation.t_end = 4.0;
+    scaled_from_physical.simulation.dt = 0.002;
+    scaled_from_physical.settings.error_mode = error_reference::Mode::None;
+    scaled_from_physical.unit_scales.enabled = true;
+    scaled_from_physical.unit_scales.time_scale = 0.5;
+    scaled_from_physical.unit_scales.displacement_scale = 0.25;
+    scaled_from_physical.unit_scales.stiffness_scale = 8.0;
+
+    DrivenConfig manual = scaled_from_physical;
+    manual.unit_scales.enabled = false;
+    manual.physical.mass = 1.0;
+    manual.physical.linear_stiffness = 1.0;
+    manual.physical.cubic_stiffness = 0.25;
+    manual.physical.drive_force = 0.2;
+    manual.physical.omega_drive = 0.8;
+    manual.physical.damping = 0.05;
+    manual.physical.theta0 = 0.4;
+    manual.physical.omega0 = -0.1;
+    manual.simulation.t_end = 8.0;
+    manual.simulation.dt = 0.004;
+
+    const SimulationResult auto_scaled = DrivenPendulumSimulator(scaled_from_physical).simulate();
+    const SimulationResult manually_scaled = DrivenPendulumSimulator(manual).simulate();
+
+    EXPECT_EQ(auto_scaled.t.size(), manually_scaled.t.size());
+    EXPECT_TRUE(std::abs(auto_scaled.theta.back() - manually_scaled.theta.back()) < 1e-9);
+    EXPECT_TRUE(std::abs(auto_scaled.omega.back() - manually_scaled.omega.back()) < 1e-9);
 }

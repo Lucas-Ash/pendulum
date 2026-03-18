@@ -15,6 +15,10 @@ debug*
 a.out
 *.csv
 !QA/driven_pendulum/outputs/driven_bifurcation_v_reference.csv
+!QA/driven_pendulum/outputs/driven_pendulum_sweep.csv
+!QA/driven_pendulum/outputs/driven_resonance_reference.csv
+!QA/driven_pendulum/outputs/driven_resonance_drift_reference.csv
+!QA/driven_pendulum/outputs/driven_lyapunov_reference.csv
 !QA/duffing_oscillator/outputs/duffing_undamped.csv
 !QA/van_der_pol/outputs/van_der_pol.dat
 !QA/van_der_pol/outputs/van_der_pol_strong_mu.dat

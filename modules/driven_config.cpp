@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cmath>
 #include <fstream>
 #include <iostream>
 #include <stdexcept>
@@ -10,11 +11,29 @@
 
 namespace {
 
+DrivenSystemModel parse_system_model(const std::string& value_raw) {
+    const std::string value = config_utils::to_lower(config_utils::parse_string(value_raw));
+    if (value == "pendulum") return DrivenSystemModel::Pendulum;
+    if (value == "duffing") return DrivenSystemModel::Duffing;
+    throw std::runtime_error("Invalid system_model: " + value_raw);
+}
+
 DrivenPlottingMethod parse_plotting_method(const std::string& value_raw) {
     const std::string value = config_utils::to_lower(config_utils::parse_string(value_raw));
     if (value == "original" || value == "gnuplot") return DrivenPlottingMethod::Original;
     if (value == "new" || value == "python" || value == "matplotlib") return DrivenPlottingMethod::New;
     throw std::runtime_error("Invalid plotting_method: " + value_raw);
+}
+
+DrivenSweepDirection parse_sweep_direction(const std::string& value_raw) {
+    const std::string value = config_utils::to_lower(config_utils::parse_string(value_raw));
+    if (value == "ascending" || value == "forward" || value == "up") {
+        return DrivenSweepDirection::Ascending;
+    }
+    if (value == "descending" || value == "backward" || value == "down") {
+        return DrivenSweepDirection::Descending;
+    }
+    throw std::runtime_error("Invalid sweep direction: " + value_raw);
 }
 
 void set_value(DrivenConfig& config, const std::string& key, const std::string& value_text,
@@ -27,6 +46,11 @@ void set_value(DrivenConfig& config, const std::string& key, const std::string& 
         if (key == "physical.g" || key == "g") {
             if (!config_utils::parse_double(value_text, double_value)) throw std::runtime_error("numeric");
             config.physical.g = double_value;
+            return;
+        }
+        if (key == "physical.system_model" || key == "physical.mode" ||
+            key == "system_model" || key == "mode") {
+            config.physical.system_model = parse_system_model(value_text);
             return;
         }
         if (key == "physical.L" || key == "L") {
@@ -62,6 +86,30 @@ void set_value(DrivenConfig& config, const std::string& key, const std::string& 
         if (key == "physical.A" || key == "A") {
             if (!config_utils::parse_double(value_text, double_value)) throw std::runtime_error("numeric");
             config.physical.A = double_value;
+            return;
+        }
+        if (key == "physical.mass" || key == "mass" ||
+            key == "duffing.mass") {
+            if (!config_utils::parse_double(value_text, double_value)) throw std::runtime_error("numeric");
+            config.physical.mass = double_value;
+            return;
+        }
+        if (key == "physical.linear_stiffness" || key == "linear_stiffness" ||
+            key == "duffing.linear_stiffness") {
+            if (!config_utils::parse_double(value_text, double_value)) throw std::runtime_error("numeric");
+            config.physical.linear_stiffness = double_value;
+            return;
+        }
+        if (key == "physical.cubic_stiffness" || key == "cubic_stiffness" ||
+            key == "duffing.cubic_stiffness") {
+            if (!config_utils::parse_double(value_text, double_value)) throw std::runtime_error("numeric");
+            config.physical.cubic_stiffness = double_value;
+            return;
+        }
+        if (key == "physical.drive_force" || key == "drive_force" ||
+            key == "duffing.drive_force") {
+            if (!config_utils::parse_double(value_text, double_value)) throw std::runtime_error("numeric");
+            config.physical.drive_force = double_value;
             return;
         }
         if (key == "physical.omega_drive" || key == "omega_drive") {
@@ -122,6 +170,105 @@ void set_value(DrivenConfig& config, const std::string& key, const std::string& 
             config.simulation.output_every = int_value;
             return;
         }
+        if (key == "unit_scales.enabled") {
+            if (!config_utils::parse_bool(value_text, bool_value)) throw std::runtime_error("boolean");
+            config.unit_scales.enabled = bool_value;
+            return;
+        }
+        if (key == "unit_scales.time_scale") {
+            if (!config_utils::parse_double(value_text, double_value)) throw std::runtime_error("numeric");
+            config.unit_scales.time_scale = double_value;
+            return;
+        }
+        if (key == "unit_scales.displacement_scale") {
+            if (!config_utils::parse_double(value_text, double_value)) throw std::runtime_error("numeric");
+            config.unit_scales.displacement_scale = double_value;
+            return;
+        }
+        if (key == "unit_scales.stiffness_scale") {
+            if (!config_utils::parse_double(value_text, double_value)) throw std::runtime_error("numeric");
+            config.unit_scales.stiffness_scale = double_value;
+            return;
+        }
+        if (key == "mass_event.enabled") {
+            if (!config_utils::parse_bool(value_text, bool_value)) throw std::runtime_error("boolean");
+            config.mass_event.enabled = bool_value;
+            return;
+        }
+        if (key == "mass_event.jump_time") {
+            if (!config_utils::parse_double(value_text, double_value)) throw std::runtime_error("numeric");
+            config.mass_event.jump_time = double_value;
+            return;
+        }
+        if (key == "mass_event.delta_mass") {
+            if (!config_utils::parse_double(value_text, double_value)) throw std::runtime_error("numeric");
+            config.mass_event.delta_mass = double_value;
+            return;
+        }
+        if (key == "mass_event.disable_drive_after_jump") {
+            if (!config_utils::parse_bool(value_text, bool_value)) throw std::runtime_error("boolean");
+            config.mass_event.disable_drive_after_jump = bool_value;
+            return;
+        }
+        if (key == "noise.enabled") {
+            if (!config_utils::parse_bool(value_text, bool_value)) throw std::runtime_error("boolean");
+            config.noise.enabled = bool_value;
+            return;
+        }
+        if (key == "noise.force_stddev") {
+            if (!config_utils::parse_double(value_text, double_value)) throw std::runtime_error("numeric");
+            config.noise.force_stddev = double_value;
+            return;
+        }
+        if (key == "noise.seed") {
+            if (!config_utils::parse_int(value_text, int_value)) throw std::runtime_error("integer");
+            config.noise.seed = static_cast<unsigned long long>(int_value);
+            return;
+        }
+        if (key == "noise.correlation_time") {
+            if (!config_utils::parse_double(value_text, double_value)) throw std::runtime_error("numeric");
+            config.noise.correlation_time = double_value;
+            return;
+        }
+        if (key == "sweep.enabled") {
+            if (!config_utils::parse_bool(value_text, bool_value)) throw std::runtime_error("boolean");
+            config.sweep.enabled = bool_value;
+            return;
+        }
+        if (key == "sweep.omega_start") {
+            if (!config_utils::parse_double(value_text, double_value)) throw std::runtime_error("numeric");
+            config.sweep.omega_start = double_value;
+            return;
+        }
+        if (key == "sweep.omega_end") {
+            if (!config_utils::parse_double(value_text, double_value)) throw std::runtime_error("numeric");
+            config.sweep.omega_end = double_value;
+            return;
+        }
+        if (key == "sweep.points") {
+            if (!config_utils::parse_int(value_text, int_value)) throw std::runtime_error("integer");
+            config.sweep.points = int_value;
+            return;
+        }
+        if (key == "sweep.settle_time") {
+            if (!config_utils::parse_double(value_text, double_value)) throw std::runtime_error("numeric");
+            config.sweep.settle_time = double_value;
+            return;
+        }
+        if (key == "sweep.direction") {
+            config.sweep.direction = parse_sweep_direction(value_text);
+            return;
+        }
+        if (key == "sweep.reuse_final_state") {
+            if (!config_utils::parse_bool(value_text, bool_value)) throw std::runtime_error("boolean");
+            config.sweep.reuse_final_state = bool_value;
+            return;
+        }
+        if (key == "sweep.analytical_branch_tracking") {
+            if (!config_utils::parse_bool(value_text, bool_value)) throw std::runtime_error("boolean");
+            config.sweep.analytical_branch_tracking = bool_value;
+            return;
+        }
         if (key == "settings.plotting_method" || key == "plotting_method") {
             config.settings.plotting_method = parse_plotting_method(value_text);
             return;
@@ -148,6 +295,10 @@ void set_value(DrivenConfig& config, const std::string& key, const std::string& 
         }
         if (key == "settings.data_file" || key == "data_file") {
             config.settings.data_file = config_utils::parse_string(value_text);
+            return;
+        }
+        if (key == "settings.sweep_data_file" || key == "sweep_data_file") {
+            config.settings.sweep_data_file = config_utils::parse_string(value_text);
             return;
         }
         if (key == "settings.output_png" || key == "output_png") {
@@ -192,6 +343,20 @@ void set_value(DrivenConfig& config, const std::string& key, const std::string& 
 
 std::string to_string(DrivenPlottingMethod method) {
     return method == DrivenPlottingMethod::Original ? "original" : "new";
+}
+
+std::string to_string(DrivenSystemModel model) {
+    switch (model) {
+        case DrivenSystemModel::Pendulum:
+            return "pendulum";
+        case DrivenSystemModel::Duffing:
+            return "duffing";
+    }
+    return "pendulum";
+}
+
+std::string to_string(DrivenSweepDirection direction) {
+    return direction == DrivenSweepDirection::Descending ? "descending" : "ascending";
 }
 
 DrivenConfig load_driven_config_from_yaml(const std::string& path) {
@@ -246,8 +411,15 @@ DrivenConfig load_driven_config_from_yaml(const std::string& path) {
         set_value(config, full_key, value, line_number, path);
     }
 
-    if (config.physical.g <= 0.0) throw std::runtime_error("Invalid config: physical.g must be > 0");
-    if (config.physical.L <= 0.0) throw std::runtime_error("Invalid config: physical.L must be > 0");
+    if (config.physical.system_model == DrivenSystemModel::Pendulum) {
+        if (config.physical.g <= 0.0) throw std::runtime_error("Invalid config: physical.g must be > 0");
+        if (config.physical.L <= 0.0) throw std::runtime_error("Invalid config: physical.L must be > 0");
+    } else {
+        if (config.physical.mass <= 0.0) throw std::runtime_error("Invalid config: physical.mass must be > 0");
+        if (config.physical.linear_stiffness <= 0.0) {
+            throw std::runtime_error("Invalid config: physical.linear_stiffness must be > 0");
+        }
+    }
     if (config.physical.damping_model == damping_force::Model::Linear &&
         config.physical.damping < 0.0) {
         throw std::runtime_error("Invalid config: physical.damping must be >= 0");
@@ -261,8 +433,28 @@ DrivenConfig load_driven_config_from_yaml(const std::string& path) {
         throw std::runtime_error(
             "Invalid config: settings.error_reference_factor must be >= 2 for hd_reference mode");
     }
+    if (config.settings.error_mode == error_reference::Mode::Analytical &&
+        config.physical.system_model != DrivenSystemModel::Pendulum) {
+        throw std::runtime_error(
+            "Invalid config: analytical error mode is only available for pendulum mode");
+    }
+    if (config.unit_scales.time_scale <= 0.0) throw std::runtime_error("Invalid config: unit_scales.time_scale must be > 0");
+    if (config.unit_scales.displacement_scale <= 0.0) throw std::runtime_error("Invalid config: unit_scales.displacement_scale must be > 0");
+    if (config.unit_scales.stiffness_scale <= 0.0) throw std::runtime_error("Invalid config: unit_scales.stiffness_scale must be > 0");
+    if (config.noise.force_stddev < 0.0) throw std::runtime_error("Invalid config: noise.force_stddev must be >= 0");
+    if (config.noise.correlation_time < 0.0) throw std::runtime_error("Invalid config: noise.correlation_time must be >= 0");
+    if (config.mass_event.enabled &&
+        (config.mass_event.jump_time < config.simulation.t_start ||
+         config.mass_event.jump_time > config.simulation.t_end)) {
+        throw std::runtime_error("Invalid config: mass_event.jump_time must be within the simulated interval");
+    }
+    if (config.sweep.enabled) {
+        if (config.sweep.points < 2) throw std::runtime_error("Invalid config: sweep.points must be >= 2");
+        if (config.sweep.settle_time <= 0.0) throw std::runtime_error("Invalid config: sweep.settle_time must be > 0");
+    }
 
     config.settings.data_file = config_utils::resolve_output_path(config.settings.data_file);
+    config.settings.sweep_data_file = config_utils::resolve_output_path(config.settings.sweep_data_file);
     config.settings.output_png = config_utils::resolve_output_path(config.settings.output_png);
     config.settings.python_script = config_utils::resolve_output_path(config.settings.python_script);
 

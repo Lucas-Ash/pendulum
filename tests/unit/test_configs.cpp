@@ -283,3 +283,89 @@ TEST(DrivenConfigOutputPathResolvesWithoutQaEnv) {
     EXPECT_EQ(cfg.settings.python_script, "outputs/c.py");
     EXPECT_FALSE(cfg.settings.plot_phase_map);
 }
+
+TEST(DrivenConfigSupportsDuffingSweepAndNoiseSections) {
+    EnvVarGuard guard("QA_TEST");
+    guard.set("1");
+
+    TempDir temp;
+    const auto path = temp.write_file(
+        "duffing_sweep.yaml",
+        "physical:\n"
+        "  system_model: duffing\n"
+        "  mass: 1.0\n"
+        "  linear_stiffness: 2.0\n"
+        "  cubic_stiffness: 0.5\n"
+        "  drive_force: 0.2\n"
+        "  damping: 1.0e-2\n"
+        "  omega_drive: 1.5\n"
+        "mass_event:\n"
+        "  enabled: true\n"
+        "  jump_time: 0.5\n"
+        "  delta_mass: 0.25\n"
+        "  disable_drive_after_jump: true\n"
+        "noise:\n"
+        "  enabled: true\n"
+        "  force_stddev: 1.0e-2\n"
+        "  seed: 17\n"
+        "  correlation_time: 2.0e-2\n"
+        "sweep:\n"
+        "  enabled: true\n"
+        "  omega_start: 1.0\n"
+        "  omega_end: 2.0\n"
+        "  points: 9\n"
+        "  settle_time: 1.0\n"
+        "  direction: descending\n"
+        "  analytical_branch_tracking: true\n"
+        "settings:\n"
+        "  error_mode: none\n"
+        "  sweep_data_file: \"duffing_sweep.csv\"\n"
+        "  run_plotter: false\n");
+
+    const DrivenConfig cfg = load_driven_config_from_yaml(path.string());
+    EXPECT_TRUE(cfg.physical.system_model == DrivenSystemModel::Duffing);
+    EXPECT_NEAR(cfg.physical.mass, 1.0, 1e-12);
+    EXPECT_NEAR(cfg.physical.drive_force, 0.2, 1e-12);
+    EXPECT_TRUE(cfg.mass_event.enabled);
+    EXPECT_NEAR(cfg.mass_event.delta_mass, 0.25, 1e-12);
+    EXPECT_TRUE(cfg.mass_event.disable_drive_after_jump);
+    EXPECT_TRUE(cfg.noise.enabled);
+    EXPECT_NEAR(cfg.noise.force_stddev, 1.0e-2, 1e-12);
+    EXPECT_EQ(cfg.noise.seed, 17ull);
+    EXPECT_TRUE(cfg.sweep.enabled);
+    EXPECT_TRUE(cfg.sweep.direction == DrivenSweepDirection::Descending);
+    EXPECT_EQ(cfg.sweep.points, 9);
+    EXPECT_EQ(cfg.settings.sweep_data_file, "duffing_sweep.csv");
+    EXPECT_TRUE(cfg.settings.error_mode == error_reference::Mode::None);
+}
+
+TEST(DrivenConfigParsesUnitScalesSection) {
+    EnvVarGuard guard("QA_TEST");
+    guard.set("1");
+
+    TempDir temp;
+    const auto path = temp.write_file(
+        "duffing_scaled.yaml",
+        "physical:\n"
+        "  system_model: duffing\n"
+        "  mass: 2.0\n"
+        "  linear_stiffness: 8.0\n"
+        "  cubic_stiffness: 32.0\n"
+        "  drive_force: 0.4\n"
+        "  damping: 0.2\n"
+        "  omega_drive: 1.6\n"
+        "unit_scales:\n"
+        "  enabled: true\n"
+        "  time_scale: 0.5\n"
+        "  displacement_scale: 0.25\n"
+        "  stiffness_scale: 8.0\n"
+        "settings:\n"
+        "  error_mode: none\n"
+        "  run_plotter: false\n");
+
+    const DrivenConfig cfg = load_driven_config_from_yaml(path.string());
+    EXPECT_TRUE(cfg.unit_scales.enabled);
+    EXPECT_NEAR(cfg.unit_scales.time_scale, 0.5, 1e-12);
+    EXPECT_NEAR(cfg.unit_scales.displacement_scale, 0.25, 1e-12);
+    EXPECT_NEAR(cfg.unit_scales.stiffness_scale, 8.0, 1e-12);
+}
