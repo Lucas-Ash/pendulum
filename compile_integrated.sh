@@ -22,6 +22,8 @@ g++ -O3 -std=c++17 -I. \
   modules/driven_plotting.cpp \
   modules/driven_reporting.cpp \
   modules/driven_simulator.cpp \
+  modules/coupled_config.cpp \
+  modules/coupled_simulator.cpp \
   -o integrated_pendulum \
   $(python3-config --cflags --embed) \
   $(python3-config --ldflags --embed)

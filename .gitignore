@@ -13,6 +13,8 @@ tests/artifacts/convergence/*.png
 AGENTS.md
 debug*
 a.out
+*.pdf
+*.docx
 *.csv
 !QA/driven_pendulum/outputs/driven_bifurcation_v_reference.csv
 !QA/driven_pendulum/outputs/driven_pendulum_sweep.csv

@@ -225,19 +225,27 @@ double acceleration_of(double t,
                        double drive_frequency) {
     const double mass = mass_at_time(t, config, system);
     const double drive_force = drive_force_at_time(t, config, system);
-    const double drive_term = drive_force * std::cos(drive_frequency * t);
+    const double drive_term = drive_force * std::cos(drive_frequency * t + config.physical.drive_phase);
+    
+    const double parametric_freq = config.physical.parametric_frequency == 0.0 ? 
+                                   2.0 * drive_frequency : config.physical.parametric_frequency;
+    const double parametric_stiffness = config.physical.parametric_amplitude * std::cos(parametric_freq * t);
+    const double parametric_excitation_term = -parametric_stiffness * theta;
+
     const double noise_term = noise_force_at_time(t, config);
 
     if (system.model == DrivenSystemModel::Pendulum) {
         return -damping_term(theta, omega, config.physical) -
                system.pendulum_omega0_sq *
                    restoring_force::term(theta, system.restoring_force) +
+               parametric_excitation_term +
                drive_term + noise_term;
     }
 
     return (-damping_term(theta, omega, config.physical) -
             system.linear_stiffness * theta -
             system.cubic_stiffness * theta * theta * theta +
+            parametric_excitation_term +
             drive_term + noise_term) /
            mass;
 }
@@ -347,8 +355,7 @@ SimulationResult simulate_window(const DrivenConfig& config,
                                const integrator::State* hd_reference_state,
                                double& theta_reference,
                                double& omega_reference) {
-        if (settings.error_mode == error_reference::Mode::None ||
-            system.model != DrivenSystemModel::Pendulum) {
+        if (settings.error_mode == error_reference::Mode::None) {
             theta_reference = sample.theta;
             omega_reference = sample.omega;
             return;
@@ -356,6 +363,11 @@ SimulationResult simulate_window(const DrivenConfig& config,
         if (settings.error_mode == error_reference::Mode::HdReference) {
             theta_reference = hd_reference_state->theta;
             omega_reference = hd_reference_state->omega;
+            return;
+        }
+        if (system.model != DrivenSystemModel::Pendulum) {
+            theta_reference = sample.theta;
+            omega_reference = sample.omega;
             return;
         }
         analytical_solution(t_sample, p, drive_frequency, omega_lin_sq,

@@ -1,0 +1,34 @@
+physical:
+  system_model: duffing
+  mass: 1.0
+  linear_stiffness: 1.0     
+  cubic_stiffness: 0.5      
+  drive_force: 7.0          
+  omega_drive: 2.0          
+  drive_phase: 0.2          
+  parametric_amplitude: 7.0 
+  parametric_frequency: 6.0 
+  damping_model: polynomial
+  damping_linear: 0.2      
+  damping_cubic: 0.8      
+  theta0: 2.0
+  omega0: 0.0
+
+simulation:
+  t_start: 0.0
+  t_end: 100.0
+  dt: 0.01
+  output_every: 1
+
+settings:
+  plotting_method: new
+  show_plot: false
+  save_png: true
+  plot_phase_map: true
+  run_plotter: true
+  data_file: "QA/van_der_pol/outputs/mathieu_vdp_duffing.dat"
+  output_png: "QA/van_der_pol/outputs/mathieu_vdp_duffing.png"
+  python_script: "QA/van_der_pol/outputs/plot_mathieu_vdp_duffing.py"
+  integrator: "rk5"
+  error_analysis: hd_reference
+  error_reference_factor: 50

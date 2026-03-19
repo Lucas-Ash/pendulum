@@ -28,6 +28,9 @@ struct DrivenPhysicalConfig {
     double damping_cubic = 0.0;
     double A = 0.5;
     double omega_drive = 1.2;
+    double drive_phase = 0.0;
+    double parametric_amplitude = 0.0;
+    double parametric_frequency = 0.0;
     double theta0 = 0.1;
     double omega0 = 0.0;
     DrivenSystemModel system_model = DrivenSystemModel::Pendulum;

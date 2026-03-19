@@ -117,6 +117,21 @@ void set_value(DrivenConfig& config, const std::string& key, const std::string& 
             config.physical.omega_drive = double_value;
             return;
         }
+        if (key == "physical.drive_phase" || key == "drive_phase") {
+            if (!config_utils::parse_double(value_text, double_value)) throw std::runtime_error("numeric");
+            config.physical.drive_phase = double_value;
+            return;
+        }
+        if (key == "physical.parametric_amplitude" || key == "parametric_amplitude") {
+            if (!config_utils::parse_double(value_text, double_value)) throw std::runtime_error("numeric");
+            config.physical.parametric_amplitude = double_value;
+            return;
+        }
+        if (key == "physical.parametric_frequency" || key == "parametric_frequency") {
+            if (!config_utils::parse_double(value_text, double_value)) throw std::runtime_error("numeric");
+            config.physical.parametric_frequency = double_value;
+            return;
+        }
         if (key == "physical.theta0" || key == "theta0") {
             if (!config_utils::parse_double(value_text, double_value)) throw std::runtime_error("numeric");
             config.physical.theta0 = double_value;

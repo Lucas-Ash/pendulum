@@ -25,11 +25,16 @@
 #include "modules/driven_reporting.h"
 #include "modules/driven_simulator.h"
 
+// Coupled Pendulum
+#include "modules/coupled_config.h"
+#include "modules/coupled_simulator.h"
+
 enum class SimulationType {
     Unknown,
     Simple,
     Damped,
-    Driven
+    Driven,
+    Coupled
 };
 
 SimulationType detect_simulation_type(const std::string& config_path) {
@@ -42,9 +47,14 @@ SimulationType detect_simulation_type(const std::string& config_path) {
     bool has_gamma = false;
     bool has_omega_drive = false;
     bool has_explicit_driven_mode = false;
+    bool has_coupled_mode = false;
 
     while (std::getline(file, line)) {
-        if (line.find("omega_drive:") != std::string::npos) {
+        if (line.find("omega_1:") != std::string::npos ||
+            line.find("alpha_11:") != std::string::npos ||
+            line.find("q1_0:") != std::string::npos) {
+            has_coupled_mode = true;
+        } else if (line.find("omega_drive:") != std::string::npos) {
             has_omega_drive = true;
         } else if ((line.find("system_model:") != std::string::npos ||
                     line.find("mode:") != std::string::npos) &&
@@ -62,6 +72,7 @@ SimulationType detect_simulation_type(const std::string& config_path) {
         }
     }
 
+    if (has_coupled_mode) return SimulationType::Coupled;
     if (has_omega_drive || has_explicit_driven_mode) return SimulationType::Driven;
     if (has_gamma) return SimulationType::Damped;
     return SimulationType::Simple;
@@ -173,6 +184,41 @@ int run_driven(const std::string& config_path) {
     return 0;
 }
 
+int run_coupled(const std::string& config_path) {
+    std::cout << "Detected Coupled Duffing simulation.\n\n";
+
+    CoupledConfig config;
+    try {
+        config = load_coupled_config_from_yaml(config_path);
+    } catch (const std::exception& ex) {
+        std::cerr << "Failed to load YAML config: " << ex.what() << "\n";
+        return 1;
+    }
+
+    std::cout << "Loaded config from: " << config_path << "\n\n";
+
+    try {
+        std::cout << "Running simulation...\n";
+        CoupledSimulator simulator(config);
+        CoupledSimulationResult result = simulator.simulate();
+        write_coupled_data_file(config.settings.data_file, result);
+        std::cout << "Data saved to " << config.settings.data_file << "\n";
+
+        write_coupled_plot_script(config.settings.python_script, config.settings.data_file, config.settings.output_png);
+        std::cout << "To view the graph, run: python3 " << config.settings.python_script << "\n";
+        
+        std::string cmd = "python3 " + config.settings.python_script;
+        if (std::system(cmd.c_str()) != 0) {
+            std::cerr << "Warning: Plotting script returned non-zero exit code.\n";
+        }
+    } catch (const std::exception& ex) {
+        std::cerr << "Simulation failed: " << ex.what() << "\n";
+        return 1;
+    }
+
+    return 0;
+}
+
 int main(int argc, char* argv[]) {
     std::cout << "==============================================\n";
     std::cout << "     Integrated Pendulum Simulation Runner\n";
@@ -195,6 +241,8 @@ int main(int argc, char* argv[]) {
                 return run_damped(config_path);
             case SimulationType::Driven:
                 return run_driven(config_path);
+            case SimulationType::Coupled:
+                return run_coupled(config_path);
             default:
                 std::cerr << "Error: Could not determine simulation type from config file.\n";
                 return 1;

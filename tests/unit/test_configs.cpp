@@ -217,6 +217,9 @@ TEST(DrivenConfigLoadsValidYamlAndValidation) {
         "  damping_cubic: 0.05\n"
         "  A: 0.4\n"
         "  omega_drive: 1.1\n"
+        "  drive_phase: 1.5707\n"
+        "  parametric_amplitude: 0.15\n"
+        "  parametric_frequency: 0.5\n"
         "  theta0: 0.05\n"
         "  omega0: 0.01\n"
         "  restoring_force_model: polynomial\n"
@@ -243,6 +246,9 @@ TEST(DrivenConfigLoadsValidYamlAndValidation) {
     const DrivenConfig cfg = load_driven_config_from_yaml(path.string());
     EXPECT_NEAR(cfg.physical.L, 1.3, 1e-12);
     EXPECT_NEAR(cfg.physical.A, 0.4, 1e-12);
+    EXPECT_NEAR(cfg.physical.drive_phase, 1.5707, 1e-12);
+    EXPECT_NEAR(cfg.physical.parametric_amplitude, 0.15, 1e-12);
+    EXPECT_NEAR(cfg.physical.parametric_frequency, 0.5, 1e-12);
     EXPECT_NEAR(cfg.physical.damping, 0.2, 1e-12);
     EXPECT_TRUE(cfg.physical.damping_model == damping_force::Model::Polynomial);
     EXPECT_NEAR(cfg.physical.damping_cubic, 0.05, 1e-12);

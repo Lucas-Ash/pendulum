@@ -1,0 +1,29 @@
+physical:
+  omega_1: 1.0
+  zeta_1: 0.03
+  alpha_11: 0.3
+  alpha_12: 0.1
+  omega_2: 1.5
+  zeta_2: 0.03
+  alpha_22: 0.2
+  alpha_21: 0.1
+  F: 1.5
+  omega_drive: 1.4
+  q1_0: 0.5
+  omega1_0: 0.0
+  q2_0: -0.5
+  omega2_0: 0.0
+
+simulation:
+  t_start: 0.0
+  t_end: 200.0
+  dt: 0.02
+  output_every: 1
+
+settings:
+  integrator: "rk5"
+  data_file: "outputs/coupled_duffing.csv"
+  output_png: "outputs/coupled_duffing.png"
+  python_script: "outputs/plot_coupled.py"
+  error_analysis: hd_reference
+  error_reference_factor: 50

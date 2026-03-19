@@ -16,6 +16,8 @@ simulation:
 integrator: "rk5"
 
 settings:
+  error_analysis: hd_reference
+  error_reference_factor: 50
   plotting_method: new
   show_plot: false
   save_png: true
