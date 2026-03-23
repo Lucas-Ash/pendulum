@@ -5,7 +5,7 @@
 #include <string>
 #include <vector>
 
-#include "modules/rk_integrators.h"
+#include "modules/integrators/rk_integrators.h"
 
 namespace {
 

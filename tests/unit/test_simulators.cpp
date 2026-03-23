@@ -4,10 +4,10 @@
 #include <cmath>
 #include <vector>
 
-#include "modules/damped_simulator.h"
-#include "modules/driven_simulator.h"
-#include "modules/frequency_estimation.h"
-#include "modules/pendulum_simulator.h"
+#include "modules/damped/damped_simulator.h"
+#include "modules/driven/driven_simulator.h"
+#include "modules/driven/frequency_estimation.h"
+#include "modules/simple/pendulum_simulator.h"
 
 namespace {
 

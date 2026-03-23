@@ -1,0 +1,751 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amssymb,amsthm}
+% booktabs not available; use \hline instead
+\usepackage{geometry}
+\usepackage{hyperref}
+% enumitem not available; using default list spacing
+\usepackage{array}
+
+\geometry{margin=2.5cm}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=blue,
+  citecolor=blue,
+  urlcolor=blue,
+}
+
+\newcommand{\bk}{\mathbf{k}}
+\newcommand{\by}{\mathbf{y}}
+\newcommand{\bx}{\mathbf{x}}
+\newcommand{\br}{\mathbf{r}}
+\newcommand{\bff}{\mathbf{f}}
+\newcommand{\bigO}{\mathcal{O}}
+\newcommand{\dt}{\Delta t}
+
+\title{Numerical Integration Methods\\[4pt]
+       \large Reference Documentation for \texttt{rk\_integrators.h}}
+\author{Pendulum Simulation Project}
+\date{\today}
+
+\begin{document}
+\maketitle
+\tableofcontents
+\newpage
+
+%=============================================================================
+\section{Introduction}
+%=============================================================================
+
+This document provides a mathematical reference for the numerical integration
+methods implemented in \texttt{modules/rk\_integrators.h}. The methods fall into
+four families:
+\begin{enumerate}
+  \item \textbf{Explicit Runge--Kutta methods} (RK3, RK4, RK5, RK23, RKF45)
+  \item \textbf{Symplectic integrators} (Semi-Implicit Euler, Leapfrog, Ruth4)
+  \item \textbf{Second-order ODE specialists} (Velocity Verlet, Runge--Kutta--Nystr\"{o}m, Numerov)
+  \item \textbf{Exponential integrators} (DEN3)
+\end{enumerate}
+
+Throughout this document the ODE system is either the first-order form
+\begin{equation}\label{eq:first-order}
+  \frac{d}{dt}\by = \bff(t,\by),
+  \qquad
+  \by = \begin{pmatrix}\theta \\ \omega\end{pmatrix},
+\end{equation}
+or the direct second-order form
+\begin{equation}\label{eq:second-order}
+  \ddot\theta = a(t,\theta).
+\end{equation}
+The time step is~$h$ (code variable \texttt{dt}), and subscript~$n$ denotes the
+value at time~$t_n$.
+
+%=============================================================================
+\section{Classical Runge--Kutta (4th Order) --- \texttt{rk4\_step}}
+\label{sec:rk4}
+%=============================================================================
+
+The classical four-stage, fourth-order explicit Runge--Kutta method. It is the
+most widely used single-step ODE integrator and provides a good balance between
+accuracy and computational cost.
+
+\subsection{Formulation}
+\begin{align}
+  \bk_1 &= \bff(t_n,\;\by_n) \notag\\
+  \bk_2 &= \bff\!\left(t_n + \tfrac{h}{2},\;\by_n + \tfrac{h}{2}\,\bk_1\right) \notag\\
+  \bk_3 &= \bff\!\left(t_n + \tfrac{h}{2},\;\by_n + \tfrac{h}{2}\,\bk_2\right) \notag\\
+  \bk_4 &= \bff\!\left(t_n + h,\;\by_n + h\,\bk_3\right) \notag\\[6pt]
+  \by_{n+1} &= \by_n + \frac{h}{6}\bigl(\bk_1 + 2\,\bk_2 + 2\,\bk_3 + \bk_4\bigr)
+  \label{eq:rk4}
+\end{align}
+
+\subsection{Butcher Tableau}
+\[
+\renewcommand{\arraystretch}{1.3}
+\begin{array}{c|cccc}
+  0   &      &      &      &     \\
+  1/2 & 1/2  &      &      &     \\
+  1/2 & 0    & 1/2  &      &     \\
+  1   & 0    & 0    & 1    &     \\
+  \hline
+      & 1/6  & 1/3  & 1/3  & 1/6 \\
+\end{array}
+\]
+
+\subsection{Properties}
+\begin{center}
+\begin{tabular}{ll}
+  \hline
+  Order          & 4 \\
+  Stages         & 4 \\
+  Implicit       & No \\
+  Symplectic     & No \\
+  Local error    & $\bigO(h^5)$ \\
+  \hline
+\end{tabular}
+\end{center}
+
+%=============================================================================
+\section{Standard Runge--Kutta (3rd Order) --- \texttt{rk3\_step}}
+\label{sec:rk3}
+%=============================================================================
+
+A three-stage, third-order explicit Runge--Kutta method. Lower cost per step
+than RK4 but also lower accuracy; useful for convergence-order studies.
+
+\subsection{Formulation}
+\begin{align}
+  \bk_1 &= \bff(t_n,\;\by_n) \notag\\
+  \bk_2 &= \bff\!\left(t_n + \tfrac{h}{2},\;\by_n + \tfrac{h}{2}\,\bk_1\right) \notag\\
+  \bk_3 &= \bff\!\left(t_n + h,\;\by_n - h\,\bk_1 + 2h\,\bk_2\right) \notag\\[6pt]
+  \by_{n+1} &= \by_n + \frac{h}{6}\bigl(\bk_1 + 4\,\bk_2 + \bk_3\bigr)
+  \label{eq:rk3}
+\end{align}
+
+\subsection{Butcher Tableau}
+\[
+\renewcommand{\arraystretch}{1.3}
+\begin{array}{c|ccc}
+  0   &      &     &     \\
+  1/2 & 1/2  &     &     \\
+  1   & -1   & 2   &     \\
+  \hline
+      & 1/6  & 2/3 & 1/6 \\
+\end{array}
+\]
+
+\subsection{Properties}
+\begin{center}
+\begin{tabular}{ll}
+  \hline
+  Order          & 3 \\
+  Stages         & 3 \\
+  Implicit       & No \\
+  Symplectic     & No \\
+  Local error    & $\bigO(h^4)$ \\
+  \hline
+\end{tabular}
+\end{center}
+
+%=============================================================================
+\section{Butcher's Runge--Kutta (5th Order) --- \texttt{rk5\_step}}
+\label{sec:rk5}
+%=============================================================================
+
+A six-stage, fifth-order explicit Runge--Kutta method due to Butcher~(1964).
+Higher accuracy per step than RK4 at the cost of two additional derivative
+evaluations.
+
+\subsection{Formulation}
+\begin{align}
+  \bk_1 &= \bff(t_n,\;\by_n) \notag\\
+  \bk_2 &= \bff\!\left(t_n + \tfrac{h}{4},\;\by_n + \tfrac{h}{4}\,\bk_1\right) \notag\\
+  \bk_3 &= \bff\!\left(t_n + \tfrac{h}{4},\;\by_n + \tfrac{h}{8}\,\bk_1
+            + \tfrac{h}{8}\,\bk_2\right) \notag\\
+  \bk_4 &= \bff\!\left(t_n + \tfrac{h}{2},\;\by_n - \tfrac{h}{2}\,\bk_2
+            + h\,\bk_3\right) \notag\\
+  \bk_5 &= \bff\!\left(t_n + \tfrac{3h}{4},\;\by_n + \tfrac{3h}{16}\,\bk_1
+            + \tfrac{9h}{16}\,\bk_4\right) \notag\\
+  \bk_6 &= \bff\!\left(t_n + h,\;\by_n - \tfrac{3h}{7}\,\bk_1
+            + \tfrac{2h}{7}\,\bk_2 + \tfrac{12h}{7}\,\bk_3
+            - \tfrac{12h}{7}\,\bk_4 + \tfrac{8h}{7}\,\bk_5\right) \notag\\[6pt]
+  \by_{n+1} &= \by_n + \frac{h}{90}\bigl(7\,\bk_1 + 32\,\bk_3
+            + 12\,\bk_4 + 32\,\bk_5 + 7\,\bk_6\bigr)
+  \label{eq:rk5}
+\end{align}
+
+\subsection{Butcher Tableau}
+\[
+\renewcommand{\arraystretch}{1.3}
+\begin{array}{c|cccccc}
+  0    &       &       &       &        &      &      \\
+  1/4  & 1/4   &       &       &        &      &      \\
+  1/4  & 1/8   & 1/8   &       &        &      &      \\
+  1/2  & 0     & -1/2  & 1     &        &      &      \\
+  3/4  & 3/16  & 0     & 0     & 9/16   &      &      \\
+  1    & -3/7  & 2/7   & 12/7  & -12/7  & 8/7  &      \\
+  \hline
+       & 7/90  & 0     & 32/90 & 12/90  & 32/90 & 7/90 \\
+\end{array}
+\]
+
+\subsection{Properties}
+\begin{center}
+\begin{tabular}{ll}
+  \hline
+  Order          & 5 \\
+  Stages         & 6 \\
+  Implicit       & No \\
+  Symplectic     & No \\
+  Local error    & $\bigO(h^6)$ \\
+  \hline
+\end{tabular}
+\end{center}
+
+%=============================================================================
+\section{Bogacki--Shampine (RK23) --- \texttt{rk23\_step}}
+\label{sec:rk23}
+%=============================================================================
+
+The Bogacki--Shampine method is a three-stage embedded Runge--Kutta pair of
+orders~2 and~3. The implementation uses the third-order solution to advance
+the state. The embedded pair structure makes it well suited for adaptive
+step-size control (only the fixed-step advance is implemented).
+
+\subsection{Formulation}
+\begin{align}
+  \bk_1 &= \bff(t_n,\;\by_n) \notag\\
+  \bk_2 &= \bff\!\left(t_n + \tfrac{h}{2},\;\by_n + \tfrac{h}{2}\,\bk_1\right) \notag\\
+  \bk_3 &= \bff\!\left(t_n + \tfrac{3h}{4},\;\by_n + \tfrac{3h}{4}\,\bk_2\right) \notag\\[6pt]
+  \by_{n+1} &= \by_n + h\left(\tfrac{2}{9}\,\bk_1 + \tfrac{1}{3}\,\bk_2
+               + \tfrac{4}{9}\,\bk_3\right)
+  \label{eq:rk23}
+\end{align}
+
+\subsection{Butcher Tableau}
+\[
+\renewcommand{\arraystretch}{1.3}
+\begin{array}{c|ccc}
+  0    &      &      &     \\
+  1/2  & 1/2  &      &     \\
+  3/4  & 0    & 3/4  &     \\
+  \hline
+       & 2/9  & 1/3  & 4/9 \\
+\end{array}
+\]
+
+\subsection{Properties}
+\begin{center}
+\begin{tabular}{ll}
+  \hline
+  Order (advance)  & 3 \\
+  Order (embedded) & 2 \\
+  Stages           & 3 \\
+  Implicit         & No \\
+  Symplectic       & No \\
+  Local error      & $\bigO(h^4)$ \\
+  \hline
+\end{tabular}
+\end{center}
+
+%=============================================================================
+\section{Runge--Kutta--Fehlberg (RKF45) --- \texttt{rkf45\_step}}
+\label{sec:rkf45}
+%=============================================================================
+
+The Runge--Kutta--Fehlberg method is a six-stage embedded pair of orders~4
+and~5. The fifth-order solution is used to advance the state, making it an
+efficient high-accuracy integrator. Originally designed for adaptive step-size
+control; the implementation uses fixed steps.
+
+\subsection{Formulation}
+\begin{align}
+  \bk_1 &= \bff(t_n,\;\by_n) \notag\\
+  \bk_2 &= \bff\!\left(t_n + \tfrac{h}{4},\;\by_n
+            + \tfrac{h}{4}\,\bk_1\right) \notag\\
+  \bk_3 &= \bff\!\left(t_n + \tfrac{3h}{8},\;\by_n
+            + \tfrac{3h}{32}\,\bk_1 + \tfrac{9h}{32}\,\bk_2\right) \notag\\
+  \bk_4 &= \bff\!\left(t_n + \tfrac{12h}{13},\;\by_n
+            + \tfrac{1932h}{2197}\,\bk_1
+            - \tfrac{7200h}{2197}\,\bk_2
+            + \tfrac{7296h}{2197}\,\bk_3\right) \notag\\
+  \bk_5 &= \bff\!\left(t_n + h,\;\by_n
+            + \tfrac{439h}{216}\,\bk_1 - 8h\,\bk_2
+            + \tfrac{3680h}{513}\,\bk_3
+            - \tfrac{845h}{4104}\,\bk_4\right) \notag\\
+  \bk_6 &= \bff\!\left(t_n + \tfrac{h}{2},\;\by_n
+            - \tfrac{8h}{27}\,\bk_1 + 2h\,\bk_2
+            - \tfrac{3544h}{2565}\,\bk_3
+            + \tfrac{1859h}{4104}\,\bk_4
+            - \tfrac{11h}{40}\,\bk_5\right) \notag\\[6pt]
+  \by_{n+1} &= \by_n + h\left(\tfrac{16}{135}\,\bk_1
+               + \tfrac{6656}{12825}\,\bk_3
+               + \tfrac{28561}{56430}\,\bk_4
+               - \tfrac{9}{50}\,\bk_5
+               + \tfrac{2}{55}\,\bk_6\right)
+  \label{eq:rkf45}
+\end{align}
+
+\subsection{Butcher Tableau}
+\[
+\renewcommand{\arraystretch}{1.3}
+\begin{array}{c|cccccc}
+  0      &            &          &              &            &        &      \\
+  1/4    & 1/4        &          &              &            &        &      \\
+  3/8    & 3/32       & 9/32     &              &            &        &      \\
+  12/13  & 1932/2197  & -7200/2197 & 7296/2197  &            &        &      \\
+  1      & 439/216    & -8       & 3680/513     & -845/4104  &        &      \\
+  1/2    & -8/27      & 2        & -3544/2565   & 1859/4104  & -11/40 &      \\
+  \hline
+  \text{5th} & 16/135 & 0        & 6656/12825   & 28561/56430 & -9/50 & 2/55 \\
+\end{array}
+\]
+
+\subsection{Properties}
+\begin{center}
+\begin{tabular}{ll}
+  \hline
+  Order (advance)  & 5 \\
+  Order (embedded) & 4 \\
+  Stages           & 6 \\
+  Implicit         & No \\
+  Symplectic       & No \\
+  Local error      & $\bigO(h^6)$ \\
+  \hline
+\end{tabular}
+\end{center}
+
+%=============================================================================
+\section{Semi-Implicit Euler (Symplectic 1st Order) --- \texttt{semi\_implicit\_euler\_step}}
+\label{sec:euler}
+%=============================================================================
+
+The semi-implicit (symplectic) Euler method updates velocity first using the
+current-state derivative, then advances position using the \emph{new} velocity.
+This asymmetric coupling makes the method symplectic, preserving the phase-space
+structure of Hamiltonian systems and providing long-term energy stability that
+the standard explicit Euler lacks.
+
+\subsection{Formulation}
+\begin{align}
+  \omega_{n+1} &= \omega_n + h\,f_\omega(t_n,\;\theta_n,\;\omega_n) \notag\\
+  \theta_{n+1} &= \theta_n + h\,\omega_{n+1}
+  \label{eq:sie}
+\end{align}
+where $f_\omega$ is the angular-acceleration component of the derivative.
+
+\subsection{Properties}
+\begin{center}
+\begin{tabular}{ll}
+  \hline
+  Order          & 1 \\
+  Stages         & 1 \\
+  Implicit       & Semi-implicit \\
+  Symplectic     & Yes \\
+  Local error    & $\bigO(h^2)$ \\
+  \hline
+\end{tabular}
+\end{center}
+
+%=============================================================================
+\section{Leapfrog / St\"{o}rmer--Verlet (Symplectic 2nd Order) --- \texttt{leapfrog\_step}}
+\label{sec:leapfrog}
+%=============================================================================
+
+The leapfrog method (drift-kick-drift form of St\"{o}rmer--Verlet) is a
+second-order symplectic integrator. It advances position by a half-step,
+evaluates the force at the midpoint, updates velocity over the full step,
+then completes the position half-step. It is time-reversible and preserves
+phase-space volume.
+
+\subsection{Formulation}
+\begin{align}
+  \theta_{n+1/2} &= \theta_n + \tfrac{h}{2}\,\omega_n \notag\\
+  \omega_{n+1}   &= \omega_n + h\,f_\omega\!\left(t_n + \tfrac{h}{2},\;\theta_{n+1/2}\right) \notag\\
+  \theta_{n+1}   &= \theta_{n+1/2} + \tfrac{h}{2}\,\omega_{n+1}
+  \label{eq:leapfrog}
+\end{align}
+
+\subsection{Properties}
+\begin{center}
+\begin{tabular}{ll}
+  \hline
+  Order             & 2 \\
+  Force evaluations & 1 per step \\
+  Implicit          & No (explicit for separable~$H$) \\
+  Symplectic        & Yes \\
+  Time-reversible   & Yes \\
+  Local error       & $\bigO(h^3)$ \\
+  \hline
+\end{tabular}
+\end{center}
+
+%=============================================================================
+\section{Ruth's 4th-Order Symplectic Integrator --- \texttt{ruth4\_step}}
+\label{sec:ruth4}
+%=============================================================================
+
+A fourth-order symplectic integrator based on the Yoshida/Forest--Ruth
+decomposition. It splits the Hamiltonian flow into alternating position kicks
+and momentum kicks with specially chosen coefficients that cancel lower-order
+error terms while preserving the symplectic structure exactly.
+
+\subsection{Coefficients}
+
+Define $w = 2^{1/3}$ and $\alpha = \dfrac{1}{2 - w}$. The position
+coefficients~$c_i$ and momentum coefficients~$d_i$ are:
+\begin{align}
+  c_1 &= \frac{\alpha}{2},        & d_1 &= \alpha, \notag\\
+  c_2 &= \frac{(1-w)\,\alpha}{2}, & d_2 &= -w\,\alpha, \notag\\
+  c_3 &= c_2,                     & d_3 &= \alpha, \notag\\
+  c_4 &= c_1.                     &     &
+  \label{eq:ruth-coeff}
+\end{align}
+
+These satisfy the consistency conditions $\sum_i c_i = 1$ and $\sum_i d_i = 1$.
+
+\subsection{Formulation}
+
+The integrator applies four position drifts interleaved with three momentum
+kicks:
+\begin{align}
+  \theta &\leftarrow \theta + c_1\,h\,\omega \notag\\
+  \omega &\leftarrow \omega + d_1\,h\,f_\omega(\theta) \notag\\
+  \theta &\leftarrow \theta + c_2\,h\,\omega \notag\\
+  \omega &\leftarrow \omega + d_2\,h\,f_\omega(\theta) \notag\\
+  \theta &\leftarrow \theta + c_3\,h\,\omega \notag\\
+  \omega &\leftarrow \omega + d_3\,h\,f_\omega(\theta) \notag\\
+  \theta &\leftarrow \theta + c_4\,h\,\omega
+  \label{eq:ruth4}
+\end{align}
+
+\subsection{Properties}
+\begin{center}
+\begin{tabular}{ll}
+  \hline
+  Order             & 4 \\
+  Force evaluations & 3 (with 4 drift sub-steps) \\
+  Implicit          & No (for separable Hamiltonians) \\
+  Symplectic        & Yes \\
+  Time-reversible   & Yes \\
+  Local error       & $\bigO(h^5)$ \\
+  \hline
+\end{tabular}
+\end{center}
+
+%=============================================================================
+\section{Velocity Verlet --- \texttt{velocity\_verlet\_step}}
+\label{sec:vv}
+%=============================================================================
+
+The Velocity Verlet algorithm is a second-order method designed for the direct
+second-order ODE $\ddot\theta = a(t,\theta)$. It is algebraically equivalent to
+the St\"{o}rmer--Verlet method but is formulated to give synchronous position and
+velocity output at each step. For conservative (velocity-independent) forces it
+is symplectic.
+
+\subsection{Formulation}
+\begin{align}
+  a_n         &= a(t_n,\;\theta_n) \notag\\
+  \theta_{n+1} &= \theta_n + h\,\omega_n + \tfrac{h^2}{2}\,a_n \notag\\
+  a_{n+1}     &= a(t_{n+1},\;\theta_{n+1}) \notag\\
+  \omega_{n+1} &= \omega_n + \tfrac{h}{2}\bigl(a_n + a_{n+1}\bigr)
+  \label{eq:vv}
+\end{align}
+
+\subsection{Properties}
+\begin{center}
+\begin{tabular}{ll}
+  \hline
+  Order             & 2 \\
+  Force evaluations & 2 per step (1 reusable from previous step) \\
+  Implicit          & No \\
+  Symplectic        & Yes (conservative forces) \\
+  Local error       & $\bigO(h^3)$ \\
+  \hline
+\end{tabular}
+\end{center}
+
+%=============================================================================
+\section{Classical Runge--Kutta--Nystr\"{o}m (4th Order) --- \texttt{runge\_kutta\_nystrom\_step}}
+\label{sec:rkn}
+%=============================================================================
+
+The Runge--Kutta--Nystr\"{o}m (RKN) method is a fourth-order integrator
+specialised for second-order ODEs of the form $\ddot\theta = a(t,\theta)$. By
+exploiting the second-order structure directly it avoids reducing the problem to
+a first-order system, and produces both $\theta$ and~$\omega$ to fourth-order
+accuracy.
+
+\subsection{Formulation}
+\begin{align}
+  k_{1,\theta} &= \omega_n, &
+  k_{1,\omega} &= a(t_n,\;\theta_n) \notag\\[4pt]
+  k_{2,\theta} &= \omega_n + \tfrac{h}{2}\,k_{1,\omega}, &
+  k_{2,\omega} &= a\!\left(t_n + \tfrac{h}{2},\;\theta_n + \tfrac{h}{2}\,k_{1,\theta}\right) \notag\\[4pt]
+  k_{3,\theta} &= \omega_n + \tfrac{h}{2}\,k_{2,\omega}, &
+  k_{3,\omega} &= a\!\left(t_n + \tfrac{h}{2},\;\theta_n + \tfrac{h}{2}\,k_{2,\theta}\right) \notag\\[4pt]
+  k_{4,\theta} &= \omega_n + h\,k_{3,\omega}, &
+  k_{4,\omega} &= a\!\left(t_n + h,\;\theta_n + h\,k_{3,\theta}\right) \notag\\[6pt]
+  \theta_{n+1} &= \theta_n + \frac{h}{6}\bigl(k_{1,\theta} + 2\,k_{2,\theta}
+                   + 2\,k_{3,\theta} + k_{4,\theta}\bigr) \notag\\[4pt]
+  \omega_{n+1} &= \omega_n + \frac{h}{6}\bigl(k_{1,\omega} + 2\,k_{2,\omega}
+                   + 2\,k_{3,\omega} + k_{4,\omega}\bigr)
+  \label{eq:rkn}
+\end{align}
+
+\subsection{Properties}
+\begin{center}
+\begin{tabular}{ll}
+  \hline
+  Order             & 4 \\
+  Force evaluations & 4 \\
+  Implicit          & No \\
+  Local error       & $\bigO(h^5)$ \\
+  \hline
+\end{tabular}
+\end{center}
+
+%=============================================================================
+\section{Numerov Method (Implicit, 4th Order) --- \texttt{numerov\_next\_theta}}
+\label{sec:numerov}
+%=============================================================================
+
+Numerov's method is a high-accuracy multistep scheme for second-order ODEs with
+no first-derivative term, $\ddot\theta = a(t,\theta)$. It achieves fourth-order
+accuracy using only three consecutive position values and their accelerations.
+The method is implicit because $a_{n+1}$ depends on the unknown~$\theta_{n+1}$;
+the implementation resolves this with Newton iteration using a numerically
+estimated Jacobian.
+
+\subsection{Recurrence}
+\begin{equation}\label{eq:numerov}
+  \theta_{n+1} - 2\,\theta_n + \theta_{n-1}
+  = \frac{h^2}{12}\bigl(a_{n-1} + 10\,a_n + a_{n+1}\bigr),
+\end{equation}
+where $a_k = a(t_k,\theta_k)$.
+
+\subsection{Newton Iteration}
+
+Since $a_{n+1} = a(t_{n+1},\theta_{n+1})$ depends on the unknown, the
+recurrence is rearranged into the root-finding problem
+\begin{equation}\label{eq:numerov-root}
+  F(\theta_{n+1}) = \theta_{n+1}
+  - \underbrace{\left[2\,\theta_n - \theta_{n-1}
+    + \frac{h^2}{12}\bigl(a_{n-1} + 10\,a_n\bigr)\right]}_{\text{RHS}}
+  - \frac{h^2}{12}\,a(t_{n+1},\theta_{n+1}) = 0.
+\end{equation}
+
+The Jacobian is approximated via central finite differences:
+\begin{equation}\label{eq:numerov-jac}
+  \frac{\partial a}{\partial\theta}\bigg|_{\theta_{n+1}}
+  \approx
+  \frac{a(t_{n+1},\,\theta_{n+1}+\varepsilon) - a(t_{n+1},\,\theta_{n+1}-\varepsilon)}{2\varepsilon},
+\end{equation}
+and the Newton update is
+\begin{equation}\label{eq:numerov-update}
+  \theta_{n+1} \leftarrow \theta_{n+1}
+  - \frac{F(\theta_{n+1})}{1 - \tfrac{h^2}{12}\,\partial a / \partial\theta}.
+\end{equation}
+
+\subsection{Bootstrap and Velocity Recovery}
+
+Numerov requires two prior position values. The implementation bootstraps
+$\theta_1$ and $\theta_2$ using the 4th-order Runge--Kutta--Nystr\"{o}m method
+(Section~\ref{sec:rkn}). All arithmetic during the Numerov phase is performed in
+\texttt{long double} for enhanced precision.
+
+Velocities are recovered \emph{a~posteriori} from the position trajectory using
+the corrected central-difference formula:
+\begin{equation}\label{eq:numerov-vel}
+  \omega_i = \frac{\theta_{i+1} - \theta_{i-1}}{2h}
+             - \frac{h}{12}\bigl(a_{i+1} - a_{i-1}\bigr),
+  \qquad 1 \le i \le N-1,
+\end{equation}
+and the endpoint velocity uses a five-point backward-difference stencil:
+\begin{equation}\label{eq:numerov-endpoint}
+  \omega_N = \frac{25\,\theta_N - 48\,\theta_{N-1} + 36\,\theta_{N-2}
+             - 16\,\theta_{N-3} + 3\,\theta_{N-4}}{12h}.
+\end{equation}
+
+\subsection{Properties}
+\begin{center}
+\begin{tabular}{ll}
+  \hline
+  Order     & 4 (global) \\
+  Type      & Multistep (requires two prior positions) \\
+  Implicit  & Yes (Newton iteration per step) \\
+  Precision & \texttt{long double} arithmetic \\
+  Local error & $\bigO(h^6)$ \\
+  \hline
+\end{tabular}
+\end{center}
+
+%=============================================================================
+\section{Discrete Exponential Nystr\"{o}m (DEN3) --- \texttt{den3\_step}}
+\label{sec:den3}
+%=============================================================================
+
+The DEN3 method is a third-order exponential integrator designed for the damped
+nonlinear oscillator equation
+\begin{equation}\label{eq:den-ode}
+  \ddot\theta + 2\gamma\,\dot\theta + \omega_0^2\,\theta = g(t,\theta,\dot\theta),
+\end{equation}
+where $\gamma$ is the damping coefficient, $\omega_0$ is the natural frequency,
+and $g$ is the nonlinear residual. The key idea is to solve the linear part
+$\ddot\theta + 2\gamma\dot\theta + \omega_0^2\theta = 0$ \emph{exactly} via a
+matrix exponential propagator, and treat the nonlinear residual with a
+three-stage quadrature of Simpson type.
+
+\subsection{Propagator Matrix}
+
+The state vector $\bx = (\theta,\;\omega)^T$ satisfies the homogeneous equation
+$\dot\bx = A\bx$ with
+\begin{equation}\label{eq:den-matrix}
+  A = \begin{pmatrix} 0 & 1 \\ -\omega_0^2 & -2\gamma \end{pmatrix}.
+\end{equation}
+
+The matrix exponential $\Phi(\tau) = e^{A\tau}$ is computed analytically in
+three regimes depending on the discriminant
+$\Delta = \omega_0^2 - \gamma^2$:
+
+\paragraph{Underdamped ($\Delta > 0$).}
+Let $\omega_d = \sqrt{\omega_0^2 - \gamma^2}$.
+\begin{equation}\label{eq:phi-under}
+  \Phi(\tau) = e^{-\gamma\tau}
+  \begin{pmatrix}
+    \cos\omega_d\tau + \dfrac{\gamma}{\omega_d}\sin\omega_d\tau &
+    \dfrac{1}{\omega_d}\sin\omega_d\tau \\[8pt]
+    -\dfrac{\omega_0^2}{\omega_d}\sin\omega_d\tau &
+    \cos\omega_d\tau - \dfrac{\gamma}{\omega_d}\sin\omega_d\tau
+  \end{pmatrix}
+\end{equation}
+
+\paragraph{Overdamped ($\Delta < 0$).}
+Let $\omega_h = \sqrt{\gamma^2 - \omega_0^2}$.
+\begin{equation}\label{eq:phi-over}
+  \Phi(\tau) = e^{-\gamma\tau}
+  \begin{pmatrix}
+    \cosh\omega_h\tau + \dfrac{\gamma}{\omega_h}\sinh\omega_h\tau &
+    \dfrac{1}{\omega_h}\sinh\omega_h\tau \\[8pt]
+    -\dfrac{\omega_0^2}{\omega_h}\sinh\omega_h\tau &
+    \cosh\omega_h\tau - \dfrac{\gamma}{\omega_h}\sinh\omega_h\tau
+  \end{pmatrix}
+\end{equation}
+
+\paragraph{Critically damped ($\Delta = 0$).}
+\begin{equation}\label{eq:phi-crit}
+  \Phi(\tau) = e^{-\gamma\tau}
+  \begin{pmatrix}
+    1 + \gamma\tau & \tau \\
+    -\omega_0^2\,\tau & 1 - \gamma\tau
+  \end{pmatrix}
+\end{equation}
+
+\subsection{Constant-Residual Response}
+
+The particular solution for a constant unit forcing $g = 1$ from zero initial
+conditions is:
+\begin{equation}\label{eq:den-response}
+  \br(\tau) =
+  \begin{pmatrix}
+    r_\theta(\tau) \\ r_\omega(\tau)
+  \end{pmatrix}
+  =
+  \begin{pmatrix}
+    \dfrac{1 - \Phi_{22}(\tau) - 2\gamma\,\Phi_{12}(\tau)}{\omega_0^2} \\[8pt]
+    \Phi_{12}(\tau)
+  \end{pmatrix},
+\end{equation}
+which follows from the identity
+$\int_0^\tau \Phi_{12}(s)\,ds = r_\theta(\tau)$ and the relation
+$r_\omega(\tau) = \dot{r}_\theta(\tau) = \Phi_{12}(\tau)$.
+
+\subsection{Three-Stage Stepping Procedure}
+
+Given state $(\theta_n,\omega_n)$ at time~$t_n$:
+
+\begin{enumerate}
+  \item \textbf{Stage~1}: evaluate residual at the current state
+  \[
+    g_1 = g(t_n,\;\theta_n,\;\omega_n).
+  \]
+
+  \item \textbf{Stage~2}: propagate a half-step with constant forcing~$g_1$
+  \[
+    \begin{pmatrix}\theta_2 \\ \omega_2\end{pmatrix}
+    = \Phi\!\left(\tfrac{h}{2}\right)
+      \begin{pmatrix}\theta_n \\ \omega_n\end{pmatrix}
+    + g_1\,\br\!\left(\tfrac{h}{2}\right),
+  \]
+  then evaluate $g_2 = g(t_n + h/2,\;\theta_2,\;\omega_2)$.
+
+  \item \textbf{Stage~3}: propagate a full step with constant forcing~$g_2$
+  \[
+    \begin{pmatrix}\theta_3 \\ \omega_3\end{pmatrix}
+    = \Phi(h)\begin{pmatrix}\theta_n \\ \omega_n\end{pmatrix}
+    + g_2\,\br(h),
+  \]
+  then evaluate $g_3 = g(t_n + h,\;\theta_3,\;\omega_3)$.
+
+  \item \textbf{Final combination} using Simpson-type weights
+        $\bigl(\tfrac{1}{6},\;\tfrac{2}{3},\;\tfrac{1}{6}\bigr)$:
+  \begin{align}
+    \theta_{n+1} &= \Phi_{11}\,\theta_n + \Phi_{12}\,\omega_n
+      + h\left[\Phi_{12}(h)\,\frac{g_1}{6}
+        + \Phi_{12}\!\left(\tfrac{h}{2}\right)\frac{2g_2}{3}\right]
+      \label{eq:den3-theta}\\[4pt]
+    \omega_{n+1} &= \Phi_{21}\,\theta_n + \Phi_{22}\,\omega_n
+      + h\left[\Phi_{22}(h)\,\frac{g_1}{6}
+        + \Phi_{22}\!\left(\tfrac{h}{2}\right)\frac{2g_2}{3}
+        + \frac{g_3}{6}\right]
+      \label{eq:den3-omega}
+  \end{align}
+\end{enumerate}
+
+\subsection{Properties}
+\begin{center}
+\begin{tabular}{ll}
+  \hline
+  Order             & 3 \\
+  Stages            & 3 residual evaluations \\
+  Implicit          & No \\
+  Exponential       & Yes (exact linear propagation) \\
+  Suited for        & Damped oscillators with nonlinear forcing \\
+  Local error       & $\bigO(h^4)$ \\
+  \hline
+\end{tabular}
+\end{center}
+
+%=============================================================================
+\section{Summary}
+\label{sec:summary}
+%=============================================================================
+
+\begin{center}
+\small
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{>{\raggedright}p{4.2cm} l c c c >{\raggedright\arraybackslash}p{2.5cm}}
+  \hline
+  \textbf{Method} & \textbf{Function} & \textbf{Order} & \textbf{Symplectic} & \textbf{Implicit} & \textbf{Family} \\
+  \hline
+  RK3                      & \texttt{rk3\_step}                 & 3 & No  & No   & Runge--Kutta \\
+  RK4                      & \texttt{rk4\_step}                 & 4 & No  & No   & Runge--Kutta \\
+  RK5 (Butcher)            & \texttt{rk5\_step}                 & 5 & No  & No   & Runge--Kutta \\
+  Bogacki--Shampine (RK23) & \texttt{rk23\_step}                & 3 & No  & No   & Embedded RK \\
+  RKF45                    & \texttt{rkf45\_step}               & 5 & No  & No   & Embedded RK \\
+  Semi-Implicit Euler      & \texttt{semi\_implicit\_euler\_step} & 1 & Yes & Semi & Symplectic \\
+  Leapfrog                 & \texttt{leapfrog\_step}            & 2 & Yes & No   & Symplectic \\
+  Ruth4                    & \texttt{ruth4\_step}               & 4 & Yes & No   & Symplectic \\
+  Velocity Verlet          & \texttt{velocity\_verlet\_step}    & 2 & Yes & No   & Verlet \\
+  Runge--Kutta--Nystr\"{o}m & \texttt{runge\_kutta\_nystrom\_step} & 4 & No & No & Nystr\"{o}m \\
+  Numerov                  & \texttt{numerov\_next\_theta}      & 4 & No  & Yes  & Multistep \\
+  DEN3                     & \texttt{den3\_step}                & 3 & No  & No   & Exponential \\
+  \hline
+\end{tabular}
+\end{center}
+
+\end{document}

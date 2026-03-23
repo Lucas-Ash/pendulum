@@ -50,18 +50,18 @@ g++ -O2 -std=c++17 -I"$ROOT_DIR" \
   "$ROOT_DIR/tests/unit/test_simulators.cpp" \
   "$ROOT_DIR/tests/unit/test_io.cpp" \
   "$ROOT_DIR/tests/integration/test_serial_integration.cpp" \
-  "$ROOT_DIR/modules/config_utils.cpp" \
-  "$ROOT_DIR/modules/jacobi_elliptic.cpp" \
-  "$ROOT_DIR/modules/error_analysis.cpp" \
-  "$ROOT_DIR/modules/experiment_config.cpp" \
-  "$ROOT_DIR/modules/damped_config.cpp" \
-  "$ROOT_DIR/modules/driven_config.cpp" \
-  "$ROOT_DIR/modules/pendulum_simulator.cpp" \
-  "$ROOT_DIR/modules/damped_simulator.cpp" \
-  "$ROOT_DIR/modules/driven_simulator.cpp" \
-  "$ROOT_DIR/modules/simple_io.cpp" \
-  "$ROOT_DIR/modules/damped_io.cpp" \
-  "$ROOT_DIR/modules/driven_io.cpp" \
+  "$ROOT_DIR/modules/core/config_utils.cpp" \
+  "$ROOT_DIR/modules/core/error_analysis.cpp" \
+  "$ROOT_DIR/modules/config/experiment_config.cpp" \
+  "$ROOT_DIR/modules/config/damped_config.cpp" \
+  "$ROOT_DIR/modules/config/driven_config.cpp" \
+  "$ROOT_DIR/modules/integrators/jacobi_elliptic.cpp" \
+  "$ROOT_DIR/modules/simple/pendulum_simulator.cpp" \
+  "$ROOT_DIR/modules/simple/simple_io.cpp" \
+  "$ROOT_DIR/modules/damped/damped_simulator.cpp" \
+  "$ROOT_DIR/modules/damped/damped_io.cpp" \
+  "$ROOT_DIR/modules/driven/driven_simulator.cpp" \
+  "$ROOT_DIR/modules/driven/driven_io.cpp" \
   -o "$BIN"
 
 echo "[2/2] Running C++ test suite..."
@@ -79,3 +79,8 @@ else
 fi
 
 "$BIN"
+
+if [[ "$PLOT_CONVERGENCE" == "1" ]]; then
+  echo "Running physics benchmark plots (DEN3-adapted, conservative)..."
+  python3 "$ROOT_DIR/tests/plot_physics_benchmarks.py" --artifacts-dir "$ROOT_DIR/tests/artifacts/convergence" || true
+fi

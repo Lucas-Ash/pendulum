@@ -4,30 +4,30 @@
 #include <string>
 
 // Simple Pendulum
-#include "modules/experiment_config.h"
-#include "modules/pendulum_simulator.h"
-#include "modules/plotting.h"
-#include "modules/reporting.h"
-#include "modules/runtime_env.h"
-#include "modules/simple_io.h"
+#include "modules/config/experiment_config.h"
+#include "modules/simple/pendulum_simulator.h"
+#include "modules/simple/plotting.h"
+#include "modules/simple/reporting.h"
+#include "modules/simple/simple_io.h"
+#include "modules/runtime/runtime_env.h"
 
 // Damped Pendulum
-#include "modules/damped_config.h"
-#include "modules/damped_io.h"
-#include "modules/damped_plotting.h"
-#include "modules/damped_reporting.h"
-#include "modules/damped_simulator.h"
+#include "modules/config/damped_config.h"
+#include "modules/damped/damped_io.h"
+#include "modules/damped/damped_plotting.h"
+#include "modules/damped/damped_reporting.h"
+#include "modules/damped/damped_simulator.h"
 
 // Driven Pendulum
-#include "modules/driven_config.h"
-#include "modules/driven_io.h"
-#include "modules/driven_plotting.h"
-#include "modules/driven_reporting.h"
-#include "modules/driven_simulator.h"
+#include "modules/config/driven_config.h"
+#include "modules/driven/driven_io.h"
+#include "modules/driven/driven_plotting.h"
+#include "modules/driven/driven_reporting.h"
+#include "modules/driven/driven_simulator.h"
 
 // Coupled Pendulum
-#include "modules/coupled_config.h"
-#include "modules/coupled_simulator.h"
+#include "modules/config/coupled_config.h"
+#include "modules/coupled/coupled_simulator.h"
 
 enum class SimulationType {
     Unknown,

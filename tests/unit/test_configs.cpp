@@ -1,8 +1,8 @@
 #include "tests/test_framework.h"
 
-#include "modules/damped_config.h"
-#include "modules/driven_config.h"
-#include "modules/experiment_config.h"
+#include "modules/config/damped_config.h"
+#include "modules/config/driven_config.h"
+#include "modules/config/experiment_config.h"
 #include "tests/test_helpers.h"
 
 TEST(ExperimentConfigLoadsValidYaml) {

@@ -2,7 +2,7 @@
 
 #include <cmath>
 
-#include "modules/jacobi_elliptic.h"
+#include "modules/integrators/jacobi_elliptic.h"
 
 TEST(JacobiSpecialCaseMZeroMatchesTrig) {
     const double u = 1.2345;

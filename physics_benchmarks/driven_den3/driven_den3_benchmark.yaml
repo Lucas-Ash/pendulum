@@ -1,0 +1,28 @@
+# Physics benchmark: Driven damped oscillator (DEN3-adapted)
+# DEN3 treats the linear damped part exactly; nonlinear/driving terms go in the residual.
+# This benchmark compares DEN3 against general-purpose RK schemes on its native problem.
+physical:
+  g: 9.81
+  L: 1.0
+  damping: 0.4
+  A: 0.3
+  omega_drive: 1.0
+  theta0: 0.0
+  omega0: 0.0
+
+simulation:
+  t_start: 0.0
+  t_end: 2.0
+  dt: 0.001
+  output_every: 1
+
+settings:
+  integrator: "den3"
+  error_analysis: hd_reference
+  error_reference_factor: 50
+  run_plotter: false
+  show_plot: false
+  save_png: false
+  data_file: "physics_benchmarks/driven_den3/outputs/driven_den3.csv"
+  output_png: "physics_benchmarks/driven_den3/outputs/driven_den3.png"
+  python_script: "physics_benchmarks/driven_den3/outputs/plot.py"

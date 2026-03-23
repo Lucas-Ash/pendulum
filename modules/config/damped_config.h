@@ -1,0 +1,53 @@
+#pragma once
+
+#include "modules/core/damping_force.h"
+#include <string>
+#include "modules/core/error_reference.h"
+#include "modules/core/restoring_force.h"
+
+enum class PlottingMethod {
+    Original,  // gnuplot workflow
+    New        // Python/matplotlib workflow
+};
+
+struct DampedPhysicalConfig {
+    double g = 9.81;
+    double L = 1.0;
+    double gamma = 0.3;
+    damping_force::Model damping_model = damping_force::Model::Linear;
+    double damping_cubic = 0.0;
+    double theta0 = 0.3;
+    double theta_dot0 = 0.0;
+    restoring_force::Config restoring_force;
+};
+
+struct DampedSimulationConfig {
+    double t_start = 0.0;
+    double t_end = 15.0;
+    double dt = 0.001;
+    int output_every = 10;
+};
+
+struct DampedSettingsConfig {
+    PlottingMethod plotting_method = PlottingMethod::Original;
+    bool show_plot = true;
+    bool save_png = true;
+    bool plot_phase_map = false;
+    bool run_plotter = true;
+    std::string data_file = "damped_pendulum_data.dat";
+    std::string output_png = "damped_pendulum.png";
+    std::string python_script = "plot_damped_pendulum.py";
+    std::string integrator = "rk4";
+    std::string analytical_model = "linear";
+    error_reference::Mode error_mode = error_reference::Mode::Analytical;
+    int error_reference_factor = 50;
+};
+
+struct DampedConfig {
+    DampedPhysicalConfig physical;
+    DampedSimulationConfig simulation;
+    DampedSettingsConfig settings;
+};
+
+DampedConfig load_damped_config_from_yaml(const std::string& path);
+std::string to_string(PlottingMethod method);

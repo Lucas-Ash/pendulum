@@ -106,6 +106,21 @@ When convergence plotting is enabled, outputs are written to:
 - `tests/artifacts/convergence/convergence_results.csv`
 - `tests/artifacts/convergence/convergence_results.png`
 - `tests/artifacts/convergence/convergence_summary.csv`
+- `tests/artifacts/convergence/performance_by_order.png`
+- `tests/artifacts/convergence/performance_by_order.csv`
+- `tests/artifacts/convergence/damped_convergence_results.csv`
+- `tests/artifacts/convergence/driven_convergence_results.csv`
+- `tests/artifacts/convergence/physics_benchmark_damped_den3.png`
+- `tests/artifacts/convergence/physics_benchmark_driven_den3.png`
+- `tests/artifacts/convergence/physics_benchmark_conservative.png`
+
+The physics-benchmarks script (`tests/plot_physics_benchmarks.py`) compares specialized schemes on their adapted problems: DEN3 on damped/driven oscillators, symplectic and position-only on the conservative pendulum.
+
+The performance-by-order script (`tests/plot_performance_by_order.py`) compares schemes of the same convergence order: for each order group (e.g., 3rd: rk3, rk23, den3; 4th: rk4, runge_kutta_nystrom, numerov, ruth4; 5th: rk5, rkf45), it plots RMS error vs total function evaluations. The scheme whose curve lies lower-left achieves higher accuracy at lower cost. Run standalone:
+
+```bash
+python3 tests/plot_performance_by_order.py --input tests/artifacts/convergence/convergence_results.csv --output tests/artifacts/convergence/performance_by_order.png
+```
 
 `convergence_summary.csv` includes, per integrator:
 

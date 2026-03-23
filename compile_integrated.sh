@@ -2,28 +2,28 @@
 g++ -O3 -std=c++17 -I. \
   -I"$(python3 -c 'import numpy; print(numpy.get_include())')" \
   integrated_pendulum_modular.cpp \
-  modules/experiment_config.cpp \
-  modules/jacobi_elliptic.cpp \
-  modules/pendulum_simulator.cpp \
-  modules/plotting.cpp \
-  modules/plotting_utils.cpp \
-  modules/reporting.cpp \
-  modules/runtime_env.cpp \
-  modules/simple_io.cpp \
-  modules/config_utils.cpp \
-  modules/error_analysis.cpp \
-  modules/damped_config.cpp \
-  modules/damped_io.cpp \
-  modules/damped_plotting.cpp \
-  modules/damped_reporting.cpp \
-  modules/damped_simulator.cpp \
-  modules/driven_config.cpp \
-  modules/driven_io.cpp \
-  modules/driven_plotting.cpp \
-  modules/driven_reporting.cpp \
-  modules/driven_simulator.cpp \
-  modules/coupled_config.cpp \
-  modules/coupled_simulator.cpp \
+  modules/core/config_utils.cpp \
+  modules/core/error_analysis.cpp \
+  modules/core/plotting_utils.cpp \
+  modules/config/experiment_config.cpp \
+  modules/config/damped_config.cpp \
+  modules/config/driven_config.cpp \
+  modules/config/coupled_config.cpp \
+  modules/integrators/jacobi_elliptic.cpp \
+  modules/simple/pendulum_simulator.cpp \
+  modules/simple/plotting.cpp \
+  modules/simple/reporting.cpp \
+  modules/simple/simple_io.cpp \
+  modules/damped/damped_io.cpp \
+  modules/damped/damped_plotting.cpp \
+  modules/damped/damped_reporting.cpp \
+  modules/damped/damped_simulator.cpp \
+  modules/driven/driven_io.cpp \
+  modules/driven/driven_plotting.cpp \
+  modules/driven/driven_reporting.cpp \
+  modules/driven/driven_simulator.cpp \
+  modules/coupled/coupled_simulator.cpp \
+  modules/runtime/runtime_env.cpp \
   -o integrated_pendulum \
   $(python3-config --cflags --embed) \
   $(python3-config --ldflags --embed)

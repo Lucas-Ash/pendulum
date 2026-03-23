@@ -1,7 +1,7 @@
 #include "tests/test_framework.h"
 
-#include "modules/error_analysis.h"
-#include "modules/simulation_result.h"
+#include "modules/core/error_analysis.h"
+#include "modules/core/simulation_result.h"
 
 TEST(ErrorAnalysisEmptyResultDoesNotCrash) {
     SimulationResult result;

@@ -1,0 +1,26 @@
+# Physics benchmark: Damped oscillator (DEN3-adapted)
+# DEN3 is an exponential integrator designed for θ̈ + 2γθ̇ + ω₀²θ = g(t,θ,θ̇).
+# This benchmark compares DEN3 against general-purpose RK schemes on its native problem.
+physical:
+  g: 9.81
+  L: 1.0
+  gamma: 0.2
+  theta0: 0.4
+  theta_dot0: 0.0
+
+simulation:
+  t_start: 0.0
+  t_end: 2.0
+  dt: 0.001
+  output_every: 1
+
+settings:
+  integrator: "den3"
+  error_analysis: hd_reference
+  error_reference_factor: 50
+  run_plotter: false
+  show_plot: false
+  save_png: false
+  data_file: "physics_benchmarks/damped_den3/outputs/damped_den3.dat"
+  output_png: "physics_benchmarks/damped_den3/outputs/damped_den3.png"
+  python_script: "physics_benchmarks/damped_den3/outputs/plot.py"

@@ -13,15 +13,15 @@
 #include <string>
 #include <vector>
 
-#include "modules/damped_config.h"
-#include "modules/damped_io.h"
-#include "modules/damped_simulator.h"
-#include "modules/driven_config.h"
-#include "modules/driven_io.h"
-#include "modules/driven_simulator.h"
-#include "modules/experiment_config.h"
-#include "modules/pendulum_simulator.h"
-#include "modules/simple_io.h"
+#include "modules/config/damped_config.h"
+#include "modules/config/driven_config.h"
+#include "modules/config/experiment_config.h"
+#include "modules/damped/damped_io.h"
+#include "modules/damped/damped_simulator.h"
+#include "modules/driven/driven_io.h"
+#include "modules/driven/driven_simulator.h"
+#include "modules/simple/pendulum_simulator.h"
+#include "modules/simple/simple_io.h"
 #include "tests/test_helpers.h"
 
 namespace {
@@ -46,6 +46,15 @@ std::string to_yaml_num(double value) {
     std::ostringstream oss;
     oss << std::setprecision(17) << value;
     return oss.str();
+}
+
+Trajectory result_to_trajectory(const SimulationResult& result, double dt) {
+    Trajectory out;
+    out.dt = dt;
+    out.theta = result.theta;
+    out.omega = result.omega;
+    out.energy = result.energy;
+    return out;
 }
 
 Trajectory run_simple_serial_case(
@@ -87,12 +96,81 @@ Trajectory run_simple_serial_case(
     const CsvData csv = read_csv(output_path);
     EXPECT_EQ(csv.rows.size(), result.t.size());
 
-    Trajectory out;
-    out.dt = cfg.dt;
-    out.theta = result.theta;
-    out.omega = result.omega;
-    out.energy = result.energy;
-    return out;
+    return result_to_trajectory(result, cfg.dt);
+}
+
+Trajectory run_damped_serial_case(const TempDir& temp,
+                                  const std::string& integrator,
+                                  double dt,
+                                  double t_end,
+                                  double gamma,
+                                  double theta0,
+                                  double theta_dot0) {
+    const std::string yaml = "physical:\n"
+        "  g: 9.81\n"
+        "  L: 1.0\n"
+        "  gamma: " + to_yaml_num(gamma) + "\n"
+        "  theta0: " + to_yaml_num(theta0) + "\n"
+        "  theta_dot0: " + to_yaml_num(theta_dot0) + "\n"
+        "simulation:\n"
+        "  t_start: 0.0\n"
+        "  t_end: " + to_yaml_num(t_end) + "\n"
+        "  dt: " + to_yaml_num(dt) + "\n"
+        "  output_every: 1\n"
+        "settings:\n"
+        "  data_file: \"serial/damped_" + integrator + ".dat\"\n"
+        "  output_png: \"serial/damped.png\"\n"
+        "  python_script: \"serial/plot.py\"\n"
+        "  integrator: \"" + integrator + "\"\n"
+        "  error_analysis: hd_reference\n"
+        "  error_reference_factor: 50\n"
+        "  run_plotter: false\n"
+        "  show_plot: false\n"
+        "  save_png: false\n";
+    const auto config_path = temp.write_file("damped_" + integrator + ".yaml", yaml);
+    const DampedConfig cfg = load_damped_config_from_yaml(config_path.string());
+    DampedPendulumSimulator simulator(cfg);
+    const SimulationResult result = simulator.simulate();
+    return result_to_trajectory(result, cfg.simulation.dt);
+}
+
+Trajectory run_driven_serial_case(const TempDir& temp,
+                                  const std::string& integrator,
+                                  double dt,
+                                  double t_end,
+                                  double damping,
+                                  double A,
+                                  double omega_drive,
+                                  double theta0,
+                                  double omega0) {
+    const std::string yaml = "physical:\n"
+        "  g: 9.81\n"
+        "  L: 1.0\n"
+        "  damping: " + to_yaml_num(damping) + "\n"
+        "  A: " + to_yaml_num(A) + "\n"
+        "  omega_drive: " + to_yaml_num(omega_drive) + "\n"
+        "  theta0: " + to_yaml_num(theta0) + "\n"
+        "  omega0: " + to_yaml_num(omega0) + "\n"
+        "simulation:\n"
+        "  t_start: 0.0\n"
+        "  t_end: " + to_yaml_num(t_end) + "\n"
+        "  dt: " + to_yaml_num(dt) + "\n"
+        "  output_every: 1\n"
+        "settings:\n"
+        "  data_file: \"serial/driven_" + integrator + ".csv\"\n"
+        "  output_png: \"serial/driven.png\"\n"
+        "  python_script: \"serial/plot.py\"\n"
+        "  integrator: \"" + integrator + "\"\n"
+        "  error_analysis: hd_reference\n"
+        "  error_reference_factor: 50\n"
+        "  run_plotter: false\n"
+        "  show_plot: false\n"
+        "  save_png: false\n";
+    const auto config_path = temp.write_file("driven_" + integrator + ".yaml", yaml);
+    const DrivenConfig cfg = load_driven_config_from_yaml(config_path.string());
+    DrivenPendulumSimulator simulator(cfg);
+    const SimulationResult result = simulator.simulate();
+    return result_to_trajectory(result, cfg.simulation.dt);
 }
 
 size_t checked_ratio(const Trajectory& candidate, const Trajectory& reference) {
@@ -216,18 +294,15 @@ std::string format_dt_for_path(double dt) {
     return s.empty() ? "0" : s;
 }
 
-void write_convergence_csv(
+void write_convergence_csv_to_path(
     const std::vector<double>& dts,
-    const std::map<std::string, std::vector<double>>& errors_by_method) {
-    const std::filesystem::path out_dir = "tests/artifacts/convergence";
-    std::filesystem::create_directories(out_dir);
-    const std::filesystem::path out_csv = out_dir / "convergence_results.csv";
-
+    const std::map<std::string, std::vector<double>>& errors_by_method,
+    const std::filesystem::path& out_csv) {
+    std::filesystem::create_directories(out_csv.parent_path());
     std::ofstream file(out_csv);
     if (!file.is_open()) {
         throw std::runtime_error("Could not write convergence CSV: " + out_csv.string());
     }
-
     file << "integrator,dt,rms_error\n";
     for (const auto& [method, errors] : errors_by_method) {
         EXPECT_EQ(errors.size(), dts.size());
@@ -237,6 +312,13 @@ void write_convergence_csv(
                  << std::setprecision(17) << errors[i] << "\n";
         }
     }
+}
+
+void write_convergence_csv(
+    const std::vector<double>& dts,
+    const std::map<std::string, std::vector<double>>& errors_by_method) {
+    write_convergence_csv_to_path(dts, errors_by_method,
+                                  "tests/artifacts/convergence/convergence_results.csv");
 }
 
 void write_numerov_convergence_report(
@@ -295,7 +377,15 @@ void maybe_render_convergence_plot() {
         command += " --show";
     }
 
-    const int rc = std::system(command.c_str());
+    int rc = std::system(command.c_str());
+    EXPECT_EQ(rc, 0);
+
+    command =
+        "python3 tests/plot_performance_by_order.py "
+        "--input tests/artifacts/convergence/convergence_results.csv "
+        "--output tests/artifacts/convergence/performance_by_order.png "
+        "--t-max 2.0";
+    rc = std::system(command.c_str());
     EXPECT_EQ(rc, 0);
 }
 
@@ -676,4 +766,80 @@ TEST(SerialIntegrationSimplePendulumConvergesWithIncreasingResolutionAcrossInteg
         numerov_state_errors,
         numerov_energy_errors);
     maybe_render_convergence_plot();
+}
+
+TEST(SerialIntegrationDampedPendulumConvergesDen3AdaptedBenchmark) {
+    EnvVarGuard guard("QA_TEST");
+    guard.set("1");
+
+    TempDir temp;
+    const double t_end = 2.0;
+    const double gamma = 0.2;
+    const double theta0 = 0.4;
+    const double theta_dot0 = 0.0;
+
+    const std::vector<double> dts = {
+        0.08, 0.04, 0.02, 0.01, 0.005, 0.0025, 0.00125, 0.000625, 0.0003125,
+    };
+
+    const double reference_dt = 0.00015625;
+    const Trajectory reference =
+        run_damped_serial_case(temp, "rk5", reference_dt, t_end, gamma, theta0, theta_dot0);
+
+    const std::vector<std::string> methods = {"den3", "rk3", "rk4", "rk5", "rk23", "rkf45"};
+    std::map<std::string, std::vector<double>> errors_by_method;
+
+    for (const auto& method : methods) {
+        std::vector<double> errors;
+        errors.reserve(dts.size());
+        for (double dt : dts) {
+            const Trajectory traj =
+                run_damped_serial_case(temp, method, dt, t_end, gamma, theta0, theta_dot0);
+            errors.push_back(trajectory_rms_error(traj, reference));
+        }
+        errors_by_method[method] = std::move(errors);
+    }
+
+    write_convergence_csv_to_path(
+        dts, errors_by_method,
+        "tests/artifacts/convergence/damped_convergence_results.csv");
+}
+
+TEST(SerialIntegrationDrivenPendulumConvergesDen3AdaptedBenchmark) {
+    EnvVarGuard guard("QA_TEST");
+    guard.set("1");
+
+    TempDir temp;
+    const double t_end = 2.0;
+    const double damping = 0.4;
+    const double A = 0.3;
+    const double omega_drive = 1.0;
+    const double theta0 = 0.0;
+    const double omega0 = 0.0;
+
+    const std::vector<double> dts = {
+        0.08, 0.04, 0.02, 0.01, 0.005, 0.0025, 0.00125, 0.000625, 0.0003125,
+    };
+
+    const double reference_dt = 0.00015625;
+    const Trajectory reference = run_driven_serial_case(
+        temp, "rk5", reference_dt, t_end, damping, A, omega_drive, theta0, omega0);
+
+    const std::vector<std::string> methods = {"den3", "rk3", "rk4", "rk5", "rk23", "rkf45"};
+    std::map<std::string, std::vector<double>> errors_by_method;
+
+    for (const auto& method : methods) {
+        std::vector<double> errors;
+        errors.reserve(dts.size());
+        for (double dt : dts) {
+            const Trajectory traj = run_driven_serial_case(
+                temp, method, dt, t_end, damping, A, omega_drive, theta0, omega0);
+            errors.push_back(trajectory_rms_error(traj, reference));
+        }
+        errors_by_method[method] = std::move(errors);
+    }
+
+    write_convergence_csv_to_path(
+        dts, errors_by_method,
+        "tests/artifacts/convergence/driven_convergence_results.csv");
 }

@@ -2,7 +2,7 @@
 
 #include <climits>
 
-#include "modules/config_utils.h"
+#include "modules/core/config_utils.h"
 #include "tests/test_helpers.h"
 
 TEST(ConfigUtilsTrimHandlesEdgeCases) {

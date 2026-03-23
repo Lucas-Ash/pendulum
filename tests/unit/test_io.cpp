@@ -2,10 +2,10 @@
 
 #include <fstream>
 
-#include "modules/damped_io.h"
-#include "modules/driven_io.h"
-#include "modules/simple_io.h"
-#include "modules/simulation_result.h"
+#include "modules/core/simulation_result.h"
+#include "modules/damped/damped_io.h"
+#include "modules/driven/driven_io.h"
+#include "modules/simple/simple_io.h"
 #include "tests/test_helpers.h"
 
 namespace {
