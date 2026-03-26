@@ -147,6 +147,65 @@ TEST(PendulumSimulatorDuffingJacobiReferenceTracksNumericalSolution) {
     EXPECT_TRUE((max_e - min_e) < 2e-3);
 }
 
+TEST(PendulumSimulatorErmakovPinneyReferenceTracksNumericalSolution) {
+    restoring_force::Config restoring;
+    restoring.model = restoring_force::Model::Polynomial;
+    restoring.linear = 1.0;
+    restoring.cubic = 0.0;
+
+    additional_terms::Config terms;
+    terms.inverse_cubic_enabled = true;
+    terms.inverse_cubic_strength = 0.09;
+    terms.singularity_epsilon = 1e-8;
+
+    PendulumSimulator sim(1.0, 1.0, 0.0005, 4.0, restoring, terms);
+    const SimulationResult out = sim.simulate(0.8, -0.05, "rk5", "ermakov_pinney");
+
+    EXPECT_FALSE(out.t.empty());
+    EXPECT_TRUE(out.theta_stats.max_abs < 5e-4);
+    EXPECT_TRUE(out.omega_stats.max_abs < 2e-3);
+}
+
+TEST(PendulumSimulatorTodaReferenceTracksNumericalSolution) {
+    restoring_force::Config restoring;
+    restoring.model = restoring_force::Model::Polynomial;
+    restoring.linear = 0.0;
+    restoring.cubic = 0.0;
+
+    additional_terms::Config terms;
+    terms.exponential_enabled = true;
+    terms.exponential_strength = 1.0;
+    terms.exponential_scale = 1.0;
+    terms.exponential_subtract_equilibrium = false;
+
+    PendulumSimulator sim(1.0, 1.0, 0.0005, 4.0, restoring, terms);
+    const SimulationResult out = sim.simulate(-0.25, 0.0, "rk5", "toda");
+
+    EXPECT_FALSE(out.t.empty());
+    EXPECT_TRUE(out.theta_stats.max_abs < 3e-4);
+    EXPECT_TRUE(out.omega_stats.max_abs < 2e-3);
+}
+
+TEST(PendulumSimulatorTodaSolitonReferenceTracksNumericalSolution) {
+    restoring_force::Config restoring;
+    restoring.model = restoring_force::Model::Polynomial;
+    restoring.linear = -1.0;
+    restoring.cubic = 0.0;
+
+    additional_terms::Config terms;
+    terms.state_power_enabled = true;
+    terms.state_power_strength = 1.5;
+    terms.state_power_exponent = 2.0;
+    terms.state_power_mode = additional_terms::StatePowerMode::PositiveOnly;
+
+    PendulumSimulator sim(1.0, 1.0, 0.0005, 6.0, restoring, terms);
+    const SimulationResult out = sim.simulate(1.0, 0.0, "rk5", "toda_soliton");
+
+    EXPECT_FALSE(out.t.empty());
+    EXPECT_TRUE(out.theta_stats.max_abs < 1e-4);
+    EXPECT_TRUE(out.omega_stats.max_abs < 5e-4);
+}
+
 TEST(PendulumSimulatorCanDisableErrorAnalysis) {
     PendulumSimulator sim(1.0, 9.81, 0.002, 3.0);
     const SimulationResult out = sim.simulate(
@@ -282,6 +341,40 @@ TEST(DampedSimulatorHdReferenceErrorAnalysisRuns) {
     const SimulationResult out = sim.simulate();
     EXPECT_FALSE(out.t.empty());
     EXPECT_TRUE(out.theta_stats.max_abs < 5e-2);
+}
+
+TEST(DampedSimulatorLaneEmdenReferenceTracksAnalyticalSolution) {
+    DampedConfig cfg;
+    cfg.physical.g = 1.0;
+    cfg.physical.L = 1.0;
+    cfg.physical.gamma = 0.0;
+    cfg.physical.damping_cubic = 0.0;
+    cfg.physical.restoring_force.model = restoring_force::Model::Polynomial;
+    cfg.physical.restoring_force.linear = 0.0;
+    cfg.physical.restoring_force.cubic = 0.0;
+    cfg.physical.additional_terms.time_damping_enabled = true;
+    cfg.physical.additional_terms.time_damping_coefficient = 2.0;
+    cfg.physical.additional_terms.time_damping_power = 1.0;
+    cfg.physical.additional_terms.state_power_enabled = true;
+    cfg.physical.additional_terms.state_power_strength = 1.0;
+    cfg.physical.additional_terms.state_power_exponent = 1.0;
+    cfg.simulation.t_start = 0.05;
+    cfg.simulation.t_end = 2.5;
+    cfg.simulation.dt = 0.0005;
+    cfg.settings.integrator = "rk5";
+    cfg.settings.analytical_model = "lane_emden";
+
+    const double xi0 = cfg.simulation.t_start;
+    cfg.physical.theta0 = std::sin(xi0) / xi0;
+    cfg.physical.theta_dot0 =
+        (xi0 * std::cos(xi0) - std::sin(xi0)) / (xi0 * xi0);
+
+    DampedPendulumSimulator sim(cfg);
+    const SimulationResult out = sim.simulate();
+
+    EXPECT_FALSE(out.t.empty());
+    EXPECT_TRUE(out.theta_stats.max_abs < 5e-5);
+    EXPECT_TRUE(out.omega_stats.max_abs < 2e-4);
 }
 
 TEST(DampedSimulatorRejectsPositionOnlyIntegratorsWithDamping) {

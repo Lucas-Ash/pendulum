@@ -59,6 +59,11 @@ settings:
 
 **Special Settings:**
 - `error_analysis` or `error_mode`: Set to `analytical`, `none`, or `hd_reference` to conduct integration error analytics against analytical solves.
+- `additional_terms.*`: optional extra ODE terms shared with the damped/driven configs:
+  - `inverse_cubic_enabled` / `inverse_cubic_strength`: adds a `+k / theta^3` Ermakov-Pinney term
+  - `exponential_enabled` / `exponential_strength` / `exponential_scale` / `exponential_subtract_equilibrium`: adds a Toda-style exponential term `-a (exp(b*theta) - delta)`
+  - `state_power_enabled` / `state_power_strength` / `state_power_exponent` / `state_power_mode`: adds a power-law restoring term `-c * theta^n`
+  - `time_damping_enabled` / `time_damping_coefficient` / `time_damping_power` / `time_damping_shift`: adds a coordinate-dependent damping term `-(c / (t+shift)^p) * theta_dot`
 
 ---
 
@@ -73,6 +78,7 @@ settings:
 - `physical.damping_model`: Switch between `linear` or `polynomial` drag models.
 - `physical.gamma` (or `damping` / `damping_linear`): Linear coefficient of damping.
 - `physical.damping_cubic`: Cubic damping factor applied if polynomial model is active.
+- `physical.additional_terms.*`: same extra-term block described above; this is how Lane-Emden style `2/t * theta_dot` and `theta^n` terms are represented.
 
 ---
 
@@ -100,6 +106,13 @@ settings:
 - **Frequency Sweeping (`sweep.enabled`):**
   - Automates sweeping across forced frequencies to build bifurcation or resonance charts!
   - Options: `sweep.omega_start`, `sweep.omega_end`, `sweep.points`, `sweep.direction` (`ascending`/`descending`), and `sweep.settle_time` (integration time skipped per-point to eliminate transients).
+- `physical.additional_terms.*`: the same shared extra-term block is also available here, although analytical references remain limited to the linear pendulum branch.
+
+**Analytical Model Names Added**
+- `ermakov_pinney`: exact reference for the linear-plus-inverse-cubic Ermakov-Pinney case.
+- `lane_emden`: exact spherical Lane-Emden reference for indices `n = 0`, `1`, or `5` when encoded via `additional_terms`.
+- `toda` / `toda_liouville`: exact reference for the pure exponential Toda/Liouville branch (`exponential_subtract_equilibrium: false`).
+- `toda_soliton` / `toda_soliton_continuum`: exact `sech^2` one-soliton profile for the continuum reduction of the Toda lattice.
 
 ---
 

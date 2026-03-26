@@ -1,5 +1,6 @@
 #pragma once
 
+#include "modules/core/additional_terms.h"
 #include "modules/core/damping_force.h"
 #include <string>
 #include "modules/core/error_reference.h"
@@ -39,6 +40,7 @@ struct DrivenPhysicalConfig {
     double cubic_stiffness = 0.0;
     double drive_force = 0.5;
     restoring_force::Config restoring_force;
+    additional_terms::Config additional_terms;
 };
 
 struct DrivenSimulationConfig {

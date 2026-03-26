@@ -98,6 +98,10 @@ When `RUN_QA_SCRIPT=1`:
 - the driven-chaos QA regression rebuilds `outputs/qa_driven_bifurcation_v.csv` and compares it to `QA/driven_pendulum/outputs/driven_bifurcation_v_reference.csv`
 - the QA YAML set now includes `QA/van_der_pol/van_der_pol.yaml`, which checks a weakly nonlinear Van der Pol case against a first-order analytical reference
 - `QA/van_der_pol/van_der_pol_strong_mu.yaml` adds a large-`mu` relaxation-oscillation case checked against a higher-resolution numerical reference
+- `QA/ermakov_pinney/ermakov_pinney_trapped_cloud.yaml` checks an exact Ermakov-Pinney breathing-mode case
+- `QA/lane_emden/lane_emden_n1_polytrope.yaml` checks an exact `n=1` Lane-Emden polytrope branch
+- `QA/toda_oscillator/toda_lattice_bond.yaml` checks an exact exponential Toda bond-compression case
+- `QA/toda_oscillator/toda_soliton_continuum.yaml` checks an exact Toda-soliton continuum-reduction case
 
 ## Convergence artifacts
 
@@ -200,6 +204,12 @@ RUN_QA_SCRIPT=1 ./tests/run_all_tests.sh --plot-convergence
   - `restoring_force_linear`: linear term coefficient (default `1.0`)
   - `restoring_force_cubic`: cubic term coefficient (default `0.0`)
   - damped/driven support `physical.*` and top-level aliases for these keys
+- Shared extra-term options are supported in all simulation configs via `additional_terms.*`:
+  - `inverse_cubic_enabled`, `inverse_cubic_strength`
+  - `exponential_enabled`, `exponential_strength`, `exponential_scale`, `exponential_subtract_equilibrium`
+  - `state_power_enabled`, `state_power_strength`, `state_power_exponent`, `state_power_mode`
+  - `time_damping_enabled`, `time_damping_coefficient`, `time_damping_power`, `time_damping_shift`
+  - `singularity_epsilon`
 - Damping-model options are supported in damped/driven configs:
   - `damping_model`: `linear` (default) or `polynomial`
   - damped uses `gamma` as the legacy linear-damping parameter, with `damping_linear` as an alias for the full coefficient multiplying `theta_dot`
@@ -208,11 +218,17 @@ RUN_QA_SCRIPT=1 ./tests/run_all_tests.sh --plot-convergence
 - Damped configs also support `analytical_model`:
   - `linear` (default): the existing underdamped linear reference
   - `van_der_pol`: a first-order weakly nonlinear Van der Pol limit-cycle approximation
+  - `lane_emden`: exact spherical Lane-Emden reference for indices `n = 0`, `1`, or `5`
   - the Van der Pol analytical reference requires the standard quadratic coefficient form `-mu * (1 - theta^2)`, implemented as `damping_model: polynomial`, `damping_linear = -mu`, `damping_cubic = mu`, plus a purely linear polynomial restoring force
 - Error-analysis options are supported in all simulation configs:
   - `error_analysis` / `error_mode`: `analytical` (default), `none`, or `hd_reference`
   - `error_reference_factor`: refinement factor for `hd_reference` mode (default `50`)
   - simple supports top-level keys; damped/driven support `settings.*` and top-level aliases
 - For simple (undamped) runs, `analytical_model: duffing_jacobi` enables a Jacobi-elliptic analytical reference for the polynomial Duffing case.
+- For simple (undamped) runs, `analytical_model: ermakov_pinney` enables the exact linear-plus-inverse-cubic reference.
+- For simple (undamped) runs, `analytical_model: toda` / `toda_liouville` enables the exact pure exponential Toda reference.
+- For simple (undamped) runs, `analytical_model: toda_soliton` / `toda_soliton_continuum` enables the exact `sech^2` continuum Toda-soliton reference.
 - QA now includes `QA/duffing_oscillator/duffing_undamped.yaml`.
 - QA now also includes `QA/van_der_pol/van_der_pol.yaml`.
+- QA now also includes `QA/ermakov_pinney/ermakov_pinney_trapped_cloud.yaml`, `QA/lane_emden/lane_emden_n1_polytrope.yaml`, and `QA/toda_oscillator/toda_lattice_bond.yaml`.
+- QA now also includes `QA/toda_oscillator/toda_soliton_continuum.yaml`.

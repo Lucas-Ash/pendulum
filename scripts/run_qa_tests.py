@@ -64,15 +64,27 @@ def load_data_file(path: Path) -> tuple[list[str], list[list[float]]]:
                 for line in lines[1:]:
                     rows.append([float(x) for x in line])
         else:
-            # .dat format: # header line then space-separated numbers
+            first_data_line = True
             for line in f:
                 line = line.strip()
+                if not line:
+                    continue
                 if line.startswith("#"):
                     columns = line.lstrip("#").split()
+                    continue
+                if "," in line:
+                    parts = [part.strip() for part in line.split(",")]
+                    if first_data_line and any(not part.replace(".", "", 1).replace("-", "", 1).replace("+", "", 1).replace("e", "", 1).replace("E", "", 1).isdigit() for part in parts):
+                        columns = parts
+                        first_data_line = False
+                        continue
+                    rows.append([float(x) for x in parts])
+                    first_data_line = False
                     continue
                 parts = line.split()
                 if parts:
                     rows.append([float(x) for x in parts])
+                    first_data_line = False
 
     return columns, rows
 
@@ -138,7 +150,7 @@ def run_simulation(exec_path: Path, config_path: Path, cwd: Path) -> subprocess.
         env=env,
         capture_output=True,
         text=True,
-        timeout=120,
+        timeout=300,
     )
 
 

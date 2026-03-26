@@ -1,0 +1,27 @@
+# Exact Ermakov-Pinney breathing mode:
+# effective width of a trapped cloud with harmonic confinement
+# and inverse-cubic pressure support.
+length: 1.0
+gravity: 1.0
+dt: 0.001
+t_max: 4.0
+theta0: 0.8
+omega0: -0.05
+integrator: "rk5"
+analytical_model: "ermakov_pinney"
+error_analysis: analytical
+
+restoring_force_model: polynomial
+restoring_force_linear: 1.0
+restoring_force_cubic: 0.0
+
+additional_terms:
+  inverse_cubic_enabled: true
+  inverse_cubic_strength: 0.09
+  singularity_epsilon: 1e-8
+
+data_file: "QA/ermakov_pinney/outputs/ermakov_pinney_trapped_cloud.csv"
+show_plot: false
+save_png: false
+plot_phase_map: false
+output_png: "QA/ermakov_pinney/outputs/ermakov_pinney_trapped_cloud.png"

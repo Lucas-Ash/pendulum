@@ -141,6 +141,11 @@ bool has_core_noise(const DrivenConfig& config) {
     return config.noise.enabled && config.noise.force_stddev > 0.0;
 }
 
+bool has_additional_terms_enabled(const additional_terms::Config& config) {
+    return config.inverse_cubic_enabled || config.exponential_enabled ||
+           config.state_power_enabled || config.time_damping_enabled;
+}
+
 double damping_term(double theta, double omega, const DrivenPhysicalConfig& p) {
     return damping_force::term(
         theta, omega, p.damping_model, p.damping, p.damping_cubic);
@@ -155,6 +160,10 @@ void validate_position_only_integrator(const std::string& method,
     if (std::abs(p.damping) > 1e-12 || std::abs(p.damping_cubic) > 1e-12) {
         throw std::runtime_error(
             method + " requires theta'' = a(t, theta); it is not valid with velocity-dependent damping.");
+    }
+    if (additional_terms::has_velocity_dependence(p.additional_terms)) {
+        throw std::runtime_error(
+            method + " requires theta'' = a(t, theta); it is not valid with time-damping terms.");
     }
     if (has_core_noise(config)) {
         throw std::runtime_error(
@@ -237,6 +246,8 @@ double acceleration_of(double t,
         return -damping_term(theta, omega, config.physical) -
                system.pendulum_omega0_sq *
                    restoring_force::term(theta, system.restoring_force) +
+               additional_terms::acceleration(
+                   t, theta, omega, config.physical.additional_terms) +
                parametric_excitation_term +
                drive_term + noise_term;
     }
@@ -246,7 +257,9 @@ double acceleration_of(double t,
             system.cubic_stiffness * theta * theta * theta +
             parametric_excitation_term +
             drive_term + noise_term) /
-           mass;
+           mass +
+           additional_terms::acceleration(
+               t, theta, omega, config.physical.additional_terms);
 }
 
 double total_energy(double theta,
@@ -256,11 +269,13 @@ double total_energy(double theta,
     if (system.model == DrivenSystemModel::Pendulum) {
         return 0.5 * omega * omega +
                system.pendulum_omega0_sq *
-                   restoring_force::potential(theta, system.restoring_force);
+                   restoring_force::potential(theta, system.restoring_force) +
+               additional_terms::potential(theta, config.physical.additional_terms);
     }
     return 0.5 * system.base_mass * omega * omega +
            0.5 * system.linear_stiffness * theta * theta +
-           0.25 * system.cubic_stiffness * theta * theta * theta * theta;
+           0.25 * system.cubic_stiffness * theta * theta * theta * theta +
+           additional_terms::potential(theta, config.physical.additional_terms);
 }
 
 void analytical_solution(double t,
@@ -318,7 +333,9 @@ SimulationResult simulate_window(const DrivenConfig& config,
     const auto& p = config.physical;
     const auto& settings = config.settings;
     const int nsteps = static_cast<int>(duration / config.simulation.dt + 0.5);
-    const double omega_lin_sq = system.linear_stiffness;
+    const double omega_lin_sq =
+        system.linear_stiffness +
+        additional_terms::linearized_stiffness(p.additional_terms);
 
     auto derivs = [&config, &system, drive_frequency](double t_val,
                                                       const integrator::State& state_val)
@@ -334,7 +351,10 @@ SimulationResult simulate_window(const DrivenConfig& config,
             ? p.damping
             : p.damping / system.base_mass;
     const double den_gamma = 0.5 * damping_over_mass;
-    const double den_omega0 = std::sqrt(std::max(0.0, system.linear_stiffness / system.base_mass));
+    const double den_omega0 = std::sqrt(std::max(
+        0.0,
+        system.linear_stiffness / system.base_mass +
+            additional_terms::linearized_stiffness(p.additional_terms) / system.base_mass));
     auto den_residual =
         [&config, &system, drive_frequency, damping_over_mass](double t_val,
                                                                const integrator::State& state_val) {
@@ -368,6 +388,11 @@ SimulationResult simulate_window(const DrivenConfig& config,
             theta_reference = sample.theta;
             omega_reference = sample.omega;
             return;
+        }
+        if (has_additional_terms_enabled(p.additional_terms)) {
+            throw std::runtime_error(
+                "Driven analytical reference does not support additional_terms; "
+                "use error_analysis: hd_reference.");
         }
         analytical_solution(t_sample, p, drive_frequency, omega_lin_sq,
                             theta_reference, omega_reference);

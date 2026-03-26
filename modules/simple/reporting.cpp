@@ -21,6 +21,15 @@ void print_accuracy_report(const ExperimentConfig& config,
         } else if (config.analytical_model == "duffing_jacobi" ||
                    config.analytical_model == "duffing") {
             reference = "Jacobi-elliptic undamped Duffing reference";
+        } else if (config.analytical_model == "ermakov_pinney" ||
+                   config.analytical_model == "ermakov") {
+            reference = "Exact Ermakov-Pinney reference";
+        } else if (config.analytical_model == "toda" ||
+                   config.analytical_model == "toda_liouville") {
+            reference = "Exact exponential Toda reference";
+        } else if (config.analytical_model == "toda_soliton" ||
+                   config.analytical_model == "toda_soliton_continuum") {
+            reference = "Exact Toda soliton continuum reference";
         }
     }
 
@@ -39,6 +48,35 @@ void print_accuracy_report(const ExperimentConfig& config,
                   << ", cubic=" << config.restoring_force.cubic << ")";
     }
     std::cout << std::endl;
+    if (config.additional_terms.inverse_cubic_enabled ||
+        config.additional_terms.exponential_enabled ||
+        config.additional_terms.state_power_enabled ||
+        config.additional_terms.time_damping_enabled) {
+        std::cout << "Additional terms:";
+        if (config.additional_terms.inverse_cubic_enabled) {
+            std::cout << " inverse_cubic=" << config.additional_terms.inverse_cubic_strength;
+        }
+        if (config.additional_terms.exponential_enabled) {
+            std::cout << " exponential=("
+                      << config.additional_terms.exponential_strength << ", "
+                      << config.additional_terms.exponential_scale
+                      << ", subtract_eq="
+                      << (config.additional_terms.exponential_subtract_equilibrium ? "true" : "false")
+                      << ")";
+        }
+        if (config.additional_terms.state_power_enabled) {
+            std::cout << " state_power=("
+                      << config.additional_terms.state_power_strength << ", n="
+                      << config.additional_terms.state_power_exponent << ")";
+        }
+        if (config.additional_terms.time_damping_enabled) {
+            std::cout << " time_damping=("
+                      << config.additional_terms.time_damping_coefficient << ", p="
+                      << config.additional_terms.time_damping_power << ", shift="
+                      << config.additional_terms.time_damping_shift << ")";
+        }
+        std::cout << std::endl;
+    }
     std::cout << "Error analysis mode: " << error_reference::to_string(config.error_mode);
     if (config.error_mode == error_reference::Mode::HdReference) {
         std::cout << " (factor=" << config.error_reference_factor << ")";

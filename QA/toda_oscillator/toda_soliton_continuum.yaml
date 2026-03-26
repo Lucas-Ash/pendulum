@@ -1,0 +1,27 @@
+# Exact Toda soliton QA case:
+# long-wave / continuum reduction of a Toda lattice one-soliton profile.
+length: 1.0
+gravity: 1.0
+dt: 0.001
+t_max: 6.0
+theta0: 1.0
+omega0: 0.0
+integrator: "rk5"
+analytical_model: "toda_soliton_continuum"
+error_analysis: analytical
+
+restoring_force_model: polynomial
+restoring_force_linear: -1.0
+restoring_force_cubic: 0.0
+
+additional_terms:
+  state_power_enabled: true
+  state_power_strength: 1.5
+  state_power_exponent: 2.0
+  state_power_mode: positive_only
+
+data_file: "QA/toda_oscillator/outputs/toda_soliton_continuum.csv"
+show_plot: false
+save_png: false
+plot_phase_map: false
+output_png: "QA/toda_oscillator/outputs/toda_soliton_continuum.png"

@@ -37,6 +37,32 @@ void print_damped_simulation_summary(const DampedConfig& config,
                   << ", cubic=" << p.restoring_force.cubic << ")";
     }
     std::cout << "\n";
+    if (p.additional_terms.inverse_cubic_enabled ||
+        p.additional_terms.exponential_enabled ||
+        p.additional_terms.state_power_enabled ||
+        p.additional_terms.time_damping_enabled) {
+        std::cout << "  extra terms =";
+        if (p.additional_terms.inverse_cubic_enabled) {
+            std::cout << " inverse_cubic=" << p.additional_terms.inverse_cubic_strength;
+        }
+        if (p.additional_terms.exponential_enabled) {
+            std::cout << " exponential=("
+                      << p.additional_terms.exponential_strength << ", "
+                      << p.additional_terms.exponential_scale << ")";
+        }
+        if (p.additional_terms.state_power_enabled) {
+            std::cout << " state_power=("
+                      << p.additional_terms.state_power_strength << ", n="
+                      << p.additional_terms.state_power_exponent << ")";
+        }
+        if (p.additional_terms.time_damping_enabled) {
+            std::cout << " time_damping=("
+                      << p.additional_terms.time_damping_coefficient << ", p="
+                      << p.additional_terms.time_damping_power << ", shift="
+                      << p.additional_terms.time_damping_shift << ")";
+        }
+        std::cout << "\n";
+    }
     if (underdamped) {
         std::cout << "  omega_d     = " << omega_d << " rad/s\n";
         std::cout << "  zeta        = " << zeta << " (underdamped)\n";

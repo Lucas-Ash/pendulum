@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include "modules/core/additional_terms.h"
 #include "modules/core/error_reference.h"
 #include "modules/core/restoring_force.h"
 
@@ -21,6 +22,7 @@ struct ExperimentConfig {
     error_reference::Mode error_mode = error_reference::Mode::Analytical;
     int error_reference_factor = 50;
     restoring_force::Config restoring_force;
+    additional_terms::Config additional_terms;
 };
 
 ExperimentConfig load_config_from_yaml(const std::string& path);

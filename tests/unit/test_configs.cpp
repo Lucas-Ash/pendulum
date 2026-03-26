@@ -29,7 +29,11 @@ TEST(ExperimentConfigLoadsValidYaml) {
         "error_reference_factor: 80\n"
         "restoring_force_model: polynomial\n"
         "restoring_force_linear: 1.2\n"
-        "restoring_force_cubic: 0.35\n");
+        "restoring_force_cubic: 0.35\n"
+        "additional_terms:\n"
+        "  inverse_cubic_enabled: true\n"
+        "  inverse_cubic_strength: 0.08\n"
+        "  singularity_epsilon: 1e-8\n");
 
     const ExperimentConfig cfg = load_config_from_yaml(path.string());
     EXPECT_NEAR(cfg.length, 2.0, 1e-12);
@@ -50,6 +54,9 @@ TEST(ExperimentConfigLoadsValidYaml) {
     EXPECT_TRUE(cfg.restoring_force.model == restoring_force::Model::Polynomial);
     EXPECT_NEAR(cfg.restoring_force.linear, 1.2, 1e-12);
     EXPECT_NEAR(cfg.restoring_force.cubic, 0.35, 1e-12);
+    EXPECT_TRUE(cfg.additional_terms.inverse_cubic_enabled);
+    EXPECT_NEAR(cfg.additional_terms.inverse_cubic_strength, 0.08, 1e-12);
+    EXPECT_NEAR(cfg.additional_terms.singularity_epsilon, 1e-8, 1e-16);
 }
 
 TEST(ExperimentConfigMissingOptionalUsesDefaults) {
@@ -137,6 +144,13 @@ TEST(DampedConfigLoadsValidYamlAndNestedSections) {
         "  restoring_force_model: polynomial\n"
         "  restoring_force_linear: 0.9\n"
         "  restoring_force_cubic: 0.2\n"
+        "  additional_terms:\n"
+        "    time_damping_enabled: true\n"
+        "    time_damping_coefficient: 2.0\n"
+        "    time_damping_power: 1.0\n"
+        "    state_power_enabled: true\n"
+        "    state_power_strength: 1.0\n"
+        "    state_power_exponent: 1.0\n"
         "simulation:\n"
         "  t_start: 0.0\n"
         "  t_end: 3.0\n"
@@ -173,6 +187,10 @@ TEST(DampedConfigLoadsValidYamlAndNestedSections) {
     EXPECT_TRUE(cfg.physical.restoring_force.model == restoring_force::Model::Polynomial);
     EXPECT_NEAR(cfg.physical.restoring_force.linear, 0.9, 1e-12);
     EXPECT_NEAR(cfg.physical.restoring_force.cubic, 0.2, 1e-12);
+    EXPECT_TRUE(cfg.physical.additional_terms.time_damping_enabled);
+    EXPECT_NEAR(cfg.physical.additional_terms.time_damping_coefficient, 2.0, 1e-12);
+    EXPECT_TRUE(cfg.physical.additional_terms.state_power_enabled);
+    EXPECT_NEAR(cfg.physical.additional_terms.state_power_exponent, 1.0, 1e-12);
 }
 
 TEST(DampedConfigDefaultsAndValidation) {
@@ -225,6 +243,11 @@ TEST(DrivenConfigLoadsValidYamlAndValidation) {
         "  restoring_force_model: polynomial\n"
         "  restoring_force_linear: 1.05\n"
         "  restoring_force_cubic: 0.15\n"
+        "  additional_terms:\n"
+        "    exponential_enabled: true\n"
+        "    exponential_strength: 0.4\n"
+        "    exponential_scale: 1.2\n"
+        "    exponential_subtract_equilibrium: false\n"
         "simulation:\n"
         "  t_start: 0.0\n"
         "  t_end: 4.0\n"
@@ -262,6 +285,10 @@ TEST(DrivenConfigLoadsValidYamlAndValidation) {
     EXPECT_TRUE(cfg.physical.restoring_force.model == restoring_force::Model::Polynomial);
     EXPECT_NEAR(cfg.physical.restoring_force.linear, 1.05, 1e-12);
     EXPECT_NEAR(cfg.physical.restoring_force.cubic, 0.15, 1e-12);
+    EXPECT_TRUE(cfg.physical.additional_terms.exponential_enabled);
+    EXPECT_NEAR(cfg.physical.additional_terms.exponential_strength, 0.4, 1e-12);
+    EXPECT_NEAR(cfg.physical.additional_terms.exponential_scale, 1.2, 1e-12);
+    EXPECT_FALSE(cfg.physical.additional_terms.exponential_subtract_equilibrium);
 
     const auto invalid = temp.write_file(
         "driven_invalid.yaml",

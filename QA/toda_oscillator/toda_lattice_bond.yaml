@@ -1,0 +1,27 @@
+# Exact Toda / Liouville exponential branch:
+# compressed bond coordinate in the strong-compression limit of a Toda lattice.
+length: 1.0
+gravity: 1.0
+dt: 0.001
+t_max: 4.0
+theta0: -0.25
+omega0: 0.0
+integrator: "rk5"
+analytical_model: "toda"
+error_analysis: analytical
+
+restoring_force_model: polynomial
+restoring_force_linear: 0.0
+restoring_force_cubic: 0.0
+
+additional_terms:
+  exponential_enabled: true
+  exponential_strength: 1.0
+  exponential_scale: 1.0
+  exponential_subtract_equilibrium: false
+
+data_file: "QA/toda_oscillator/outputs/toda_lattice_bond.csv"
+show_plot: false
+save_png: false
+plot_phase_map: false
+output_png: "QA/toda_oscillator/outputs/toda_lattice_bond.png"

@@ -165,6 +165,117 @@ void set_value(DrivenConfig& config, const std::string& key, const std::string& 
             config.physical.restoring_force.cubic = double_value;
             return;
         }
+        if (key == "physical.additional_terms.inverse_cubic_enabled" ||
+            key == "additional_terms.inverse_cubic_enabled" ||
+            key == "inverse_cubic_enabled") {
+            if (!config_utils::parse_bool(value_text, bool_value)) throw std::runtime_error("boolean");
+            config.physical.additional_terms.inverse_cubic_enabled = bool_value;
+            return;
+        }
+        if (key == "physical.additional_terms.inverse_cubic_strength" ||
+            key == "additional_terms.inverse_cubic_strength" ||
+            key == "inverse_cubic_strength") {
+            if (!config_utils::parse_double(value_text, double_value)) throw std::runtime_error("numeric");
+            config.physical.additional_terms.inverse_cubic_strength = double_value;
+            return;
+        }
+        if (key == "physical.additional_terms.exponential_enabled" ||
+            key == "additional_terms.exponential_enabled" ||
+            key == "exponential_enabled") {
+            if (!config_utils::parse_bool(value_text, bool_value)) throw std::runtime_error("boolean");
+            config.physical.additional_terms.exponential_enabled = bool_value;
+            return;
+        }
+        if (key == "physical.additional_terms.exponential_strength" ||
+            key == "additional_terms.exponential_strength" ||
+            key == "exponential_strength") {
+            if (!config_utils::parse_double(value_text, double_value)) throw std::runtime_error("numeric");
+            config.physical.additional_terms.exponential_strength = double_value;
+            return;
+        }
+        if (key == "physical.additional_terms.exponential_scale" ||
+            key == "additional_terms.exponential_scale" ||
+            key == "exponential_scale") {
+            if (!config_utils::parse_double(value_text, double_value)) throw std::runtime_error("numeric");
+            config.physical.additional_terms.exponential_scale = double_value;
+            return;
+        }
+        if (key == "physical.additional_terms.exponential_subtract_equilibrium" ||
+            key == "additional_terms.exponential_subtract_equilibrium" ||
+            key == "exponential_subtract_equilibrium") {
+            if (!config_utils::parse_bool(value_text, bool_value)) throw std::runtime_error("boolean");
+            config.physical.additional_terms.exponential_subtract_equilibrium = bool_value;
+            return;
+        }
+        if (key == "physical.additional_terms.state_power_enabled" ||
+            key == "additional_terms.state_power_enabled" ||
+            key == "state_power_enabled") {
+            if (!config_utils::parse_bool(value_text, bool_value)) throw std::runtime_error("boolean");
+            config.physical.additional_terms.state_power_enabled = bool_value;
+            return;
+        }
+        if (key == "physical.additional_terms.state_power_strength" ||
+            key == "additional_terms.state_power_strength" ||
+            key == "state_power_strength") {
+            if (!config_utils::parse_double(value_text, double_value)) throw std::runtime_error("numeric");
+            config.physical.additional_terms.state_power_strength = double_value;
+            return;
+        }
+        if (key == "physical.additional_terms.state_power_exponent" ||
+            key == "additional_terms.state_power_exponent" ||
+            key == "state_power_exponent") {
+            if (!config_utils::parse_double(value_text, double_value)) throw std::runtime_error("numeric");
+            config.physical.additional_terms.state_power_exponent = double_value;
+            return;
+        }
+        if (key == "physical.additional_terms.state_power_mode" ||
+            key == "additional_terms.state_power_mode" ||
+            key == "state_power_mode") {
+            const std::string mode_name =
+                config_utils::to_lower(config_utils::parse_string(value_text));
+            additional_terms::StatePowerMode mode =
+                additional_terms::StatePowerMode::PositiveOnly;
+            if (!additional_terms::parse_state_power_mode(mode_name, mode)) {
+                throw std::runtime_error("state_power_mode must be 'positive_only' or 'signed'");
+            }
+            config.physical.additional_terms.state_power_mode = mode;
+            return;
+        }
+        if (key == "physical.additional_terms.time_damping_enabled" ||
+            key == "additional_terms.time_damping_enabled" ||
+            key == "time_damping_enabled") {
+            if (!config_utils::parse_bool(value_text, bool_value)) throw std::runtime_error("boolean");
+            config.physical.additional_terms.time_damping_enabled = bool_value;
+            return;
+        }
+        if (key == "physical.additional_terms.time_damping_coefficient" ||
+            key == "additional_terms.time_damping_coefficient" ||
+            key == "time_damping_coefficient") {
+            if (!config_utils::parse_double(value_text, double_value)) throw std::runtime_error("numeric");
+            config.physical.additional_terms.time_damping_coefficient = double_value;
+            return;
+        }
+        if (key == "physical.additional_terms.time_damping_power" ||
+            key == "additional_terms.time_damping_power" ||
+            key == "time_damping_power") {
+            if (!config_utils::parse_double(value_text, double_value)) throw std::runtime_error("numeric");
+            config.physical.additional_terms.time_damping_power = double_value;
+            return;
+        }
+        if (key == "physical.additional_terms.time_damping_shift" ||
+            key == "additional_terms.time_damping_shift" ||
+            key == "time_damping_shift") {
+            if (!config_utils::parse_double(value_text, double_value)) throw std::runtime_error("numeric");
+            config.physical.additional_terms.time_damping_shift = double_value;
+            return;
+        }
+        if (key == "physical.additional_terms.singularity_epsilon" ||
+            key == "additional_terms.singularity_epsilon" ||
+            key == "singularity_epsilon") {
+            if (!config_utils::parse_double(value_text, double_value)) throw std::runtime_error("numeric");
+            config.physical.additional_terms.singularity_epsilon = double_value;
+            return;
+        }
         if (key == "simulation.t_start" || key == "t_start") {
             if (!config_utils::parse_double(value_text, double_value)) throw std::runtime_error("numeric");
             config.simulation.t_start = double_value;
@@ -452,6 +563,15 @@ DrivenConfig load_driven_config_from_yaml(const std::string& path) {
         config.physical.system_model != DrivenSystemModel::Pendulum) {
         throw std::runtime_error(
             "Invalid config: analytical error mode is only available for pendulum mode");
+    }
+    if (config.physical.additional_terms.exponential_enabled &&
+        std::abs(config.physical.additional_terms.exponential_scale) <= 1e-15) {
+        throw std::runtime_error(
+            "Invalid config: physical.additional_terms.exponential_scale must be non-zero");
+    }
+    if (config.physical.additional_terms.singularity_epsilon <= 0.0) {
+        throw std::runtime_error(
+            "Invalid config: physical.additional_terms.singularity_epsilon must be > 0");
     }
     if (config.unit_scales.time_scale <= 0.0) throw std::runtime_error("Invalid config: unit_scales.time_scale must be > 0");
     if (config.unit_scales.displacement_scale <= 0.0) throw std::runtime_error("Invalid config: unit_scales.displacement_scale must be > 0");

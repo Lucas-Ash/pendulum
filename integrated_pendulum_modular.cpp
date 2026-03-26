@@ -65,6 +65,8 @@ SimulationType detect_simulation_type(const std::string& config_path) {
             has_explicit_driven_mode = true;
         } else if (line.find("gamma:") != std::string::npos ||
                    line.find("damping:") != std::string::npos ||
+                   line.find("time_damping_") != std::string::npos ||
+                   line.find("lane_emden") != std::string::npos ||
                    line.find("damping_model:") != std::string::npos ||
                    line.find("damping_linear:") != std::string::npos ||
                    line.find("damping_cubic:") != std::string::npos) {
@@ -98,7 +100,7 @@ int run_simple(const std::string& config_path) {
 
     PendulumSimulator pendulum(
         config.length, config.gravity, config.dt, config.t_max,
-        config.restoring_force);
+        config.restoring_force, config.additional_terms);
     SimulationResult result = pendulum.simulate(
         config.theta0, config.omega0, config.integrator, config.analytical_model,
         config.error_mode, config.error_reference_factor);

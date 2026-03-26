@@ -1,5 +1,6 @@
 #pragma once
 
+#include "modules/core/additional_terms.h"
 #include "modules/core/damping_force.h"
 #include <string>
 #include "modules/core/error_reference.h"
@@ -19,6 +20,7 @@ struct DampedPhysicalConfig {
     double theta0 = 0.3;
     double theta_dot0 = 0.0;
     restoring_force::Config restoring_force;
+    additional_terms::Config additional_terms;
 };
 
 struct DampedSimulationConfig {

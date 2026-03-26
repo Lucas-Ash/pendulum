@@ -27,7 +27,8 @@ void validate_position_only_integrator(const std::string& method,
         return;
     }
     if (std::abs(linear_damping_coefficient(physical)) > 1e-12 ||
-        std::abs(physical.damping_cubic) > 1e-12) {
+        std::abs(physical.damping_cubic) > 1e-12 ||
+        additional_terms::has_velocity_dependence(physical.additional_terms)) {
         throw std::runtime_error(
             method + " requires theta'' = a(t, theta); it is not valid with velocity-dependent damping.");
     }
@@ -118,20 +119,64 @@ SimulationResult DampedPendulumSimulator::simulate() const {
     const bool use_analytical = settings.error_mode == error_reference::Mode::Analytical;
     double omega_d = 0.0;
     double omega_linear = 0.0;
+    double omega_lin_sq = 0.0;
     double van_der_pol_mu = 0.0;
     double van_der_pol_phase = 0.0;
+    const bool wants_lane_emden =
+        settings.analytical_model == "lane_emden";
     if (use_analytical) {
-        const double linearized_slope = restoring_force::linearized_slope(p.restoring_force);
-        const double omega_lin_sq = omega0_sq * linearized_slope;
-        if (omega_lin_sq <= 0.0) {
-            throw std::runtime_error(
-                "Damped analytical reference requires positive linearized stiffness.");
-        }
-        omega_linear = std::sqrt(omega_lin_sq);
-
         const bool wants_van_der_pol =
             settings.analytical_model == "van_der_pol" ||
             settings.analytical_model == "van_der_pol_first_order";
+        if (wants_lane_emden) {
+            if (std::abs(linear_damping_coefficient(p)) > 1e-12 ||
+                std::abs(p.damping_cubic) > 1e-12) {
+                throw std::runtime_error(
+                    "Lane-Emden analytical reference requires classical damping to be disabled.");
+            }
+            if (p.restoring_force.model != restoring_force::Model::Polynomial ||
+                std::abs(p.restoring_force.linear) > 1e-12 ||
+                std::abs(p.restoring_force.cubic) > 1e-12) {
+                throw std::runtime_error(
+                    "Lane-Emden analytical reference requires the base restoring force to be disabled.");
+            }
+            if (!p.additional_terms.time_damping_enabled ||
+                std::abs(p.additional_terms.time_damping_coefficient - 2.0) > 1e-12 ||
+                std::abs(p.additional_terms.time_damping_power - 1.0) > 1e-12) {
+                throw std::runtime_error(
+                    "Lane-Emden analytical reference requires time_damping_coefficient = 2 and time_damping_power = 1.");
+            }
+            if (!p.additional_terms.state_power_enabled ||
+                std::abs(p.additional_terms.state_power_strength - 1.0) > 1e-12) {
+                throw std::runtime_error(
+                    "Lane-Emden analytical reference requires state_power_strength = 1.");
+            }
+            const double lane_index = p.additional_terms.state_power_exponent;
+            const bool supported_index =
+                std::abs(lane_index) < 1e-12 ||
+                std::abs(lane_index - 1.0) < 1e-12 ||
+                std::abs(lane_index - 5.0) < 1e-12;
+            if (!supported_index) {
+                throw std::runtime_error(
+                    "Lane-Emden analytical reference is implemented for polytropic indices n = 0, 1, or 5.");
+            }
+            if (s.t_start + p.additional_terms.time_damping_shift <=
+                p.additional_terms.singularity_epsilon) {
+                throw std::runtime_error(
+                    "Lane-Emden analytical reference requires t_start + time_damping_shift > 0.");
+            }
+        } else {
+            const double linearized_slope =
+                restoring_force::linearized_slope(p.restoring_force) +
+                additional_terms::linearized_stiffness(p.additional_terms) / omega0_sq;
+            omega_lin_sq = omega0_sq * linearized_slope;
+            if (omega_lin_sq <= 0.0) {
+                throw std::runtime_error(
+                    "Damped analytical reference requires positive linearized stiffness.");
+            }
+            omega_linear = std::sqrt(omega_lin_sq);
+        }
+
         if (wants_van_der_pol) {
             if (p.damping_model != damping_force::Model::Polynomial) {
                 throw std::runtime_error(
@@ -162,7 +207,7 @@ SimulationResult DampedPendulumSimulator::simulate() const {
             }
             van_der_pol_phase = estimate_van_der_pol_phase(
                 omega_linear, van_der_pol_mu, p.theta0, p.theta_dot0);
-        } else {
+        } else if (!wants_lane_emden) {
             if (std::abs(p.damping_cubic) > 1e-15) {
                 throw std::runtime_error(
                     "Linear damped analytical reference does not support damping_cubic != 0. "
@@ -181,20 +226,27 @@ SimulationResult DampedPendulumSimulator::simulate() const {
 
     auto derivs = [physical = p, omega0_sq](double t_val, const integrator::State& state) -> integrator::State {
         return {state.omega, -damping_term(state.theta, state.omega, physical)
-                              - omega0_sq * restoring_force::term(state.theta, physical.restoring_force)};
+                              - omega0_sq * restoring_force::term(state.theta, physical.restoring_force)
+                              + additional_terms::acceleration(
+                                    t_val, state.theta, state.omega, physical.additional_terms)};
     };
     const double den_omega0_sq = std::max(
-        0.0, omega0_sq * restoring_force::linearized_slope(p.restoring_force));
+        0.0, omega0_sq * restoring_force::linearized_slope(p.restoring_force) +
+                 additional_terms::linearized_stiffness(p.additional_terms));
     const double den_omega0 = std::sqrt(den_omega0_sq);
     auto den_residual =
-        [physical = p, omega0_sq, den_omega0_sq](double, const integrator::State& state) {
+        [physical = p, omega0_sq, den_omega0_sq](double t_val, const integrator::State& state) {
             return -damping_term(state.theta, state.omega, physical)
                    - omega0_sq * restoring_force::term(state.theta, physical.restoring_force)
+                   + additional_terms::acceleration(
+                         t_val, state.theta, state.omega, physical.additional_terms)
                    + linear_damping_coefficient(physical) * state.omega
                    + den_omega0_sq * state.theta;
         };
     auto acceleration = [physical = p, omega0_sq](double t_val, double theta) {
-        return -omega0_sq * restoring_force::term(theta, physical.restoring_force);
+        return -omega0_sq * restoring_force::term(theta, physical.restoring_force) +
+               additional_terms::acceleration(
+                   t_val, theta, 0.0, physical.additional_terms);
     };
 
     auto reference_state =
@@ -218,6 +270,22 @@ SimulationResult DampedPendulumSimulator::simulate() const {
             const bool wants_van_der_pol =
                 settings.analytical_model == "van_der_pol" ||
                 settings.analytical_model == "van_der_pol_first_order";
+            if (settings.analytical_model == "lane_emden") {
+                const double xi = t + p.additional_terms.time_damping_shift;
+                const double index = p.additional_terms.state_power_exponent;
+                if (std::abs(index) < 1e-12) {
+                    theta_reference = 1.0 - xi * xi / 6.0;
+                    omega_reference = -xi / 3.0;
+                } else if (std::abs(index - 1.0) < 1e-12) {
+                    theta_reference = std::sin(xi) / xi;
+                    omega_reference = (xi * std::cos(xi) - std::sin(xi)) / (xi * xi);
+                } else {
+                    const double scale = 1.0 + xi * xi / 3.0;
+                    theta_reference = 1.0 / std::sqrt(scale);
+                    omega_reference = -xi / (3.0 * std::pow(scale, 1.5));
+                }
+                return;
+            }
             if (wants_van_der_pol) {
                 van_der_pol_first_order_state(
                     t, omega_linear, van_der_pol_mu, van_der_pol_phase,
@@ -231,7 +299,8 @@ SimulationResult DampedPendulumSimulator::simulate() const {
         };
 
     auto energy_of = [omega0_sq, p](const integrator::State& sample) {
-        return total_energy(sample.theta, sample.omega, omega0_sq, p.restoring_force);
+        return total_energy(sample.theta, sample.omega, omega0_sq, p.restoring_force) +
+               additional_terms::potential(sample.theta, p.additional_terms);
     };
 
     return simulation_runner::run(
